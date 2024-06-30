@@ -10,12 +10,11 @@ constexpr float window_height = 600;
 constexpr const char* window_title = "not doom";
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
-constexpr Vector2 grid_dims = {window_width / num_cols, window_height / num_rows};
 constexpr float fps = 60.f;
 
-Vector2 player_pos = {0, 0};
+Vector2 player_pos = {window_width, window_height};
 Vector2 player_dir = {1, 1};
-float player_speed = fps * 100.f;
+float player_speed = fps * 10.f;
 float near_plane = 0.5f;
 
 bool level[num_rows * num_cols] = {
@@ -32,13 +31,19 @@ bool level[num_rows * num_cols] = {
 };
 
 void draw_map(Rectangle boundary) {
+    Vector2 grid_dims = {boundary.width / num_cols, boundary.height / num_rows};
+    Vector2 player_local_pos = {grid_dims.x * (player_pos.x / boundary.width), grid_dims.y * (player_pos.y / window_height)};
     for (u64 y = 0; y < num_rows; ++y) {
 	for (u64 x = 0; x < num_cols; ++x) {
 	    DrawLine(boundary.x + x * grid_dims.x, boundary.y + y * grid_dims.y, boundary.width, y * grid_dims.y, RAYWHITE);
 	    DrawLine(boundary.x + y * grid_dims.x, boundary.y + x * grid_dims.y, y * grid_dims.x, boundary.height, RAYWHITE);
 	}
     }
-    DrawCircle(boundary.x + player_pos.x / grid_dims.x, boundary.y + player_pos.y / grid_dims.y, 10, RED);
+    Color player_col = RED;
+    if (!CheckCollisionPointRec(player_local_pos, boundary)) {
+	player_col = ColorAlpha(player_col, 0.2f);
+    }
+    DrawCircle(boundary.x + player_local_pos.x, boundary.y + player_local_pos.y, 10, RED);
 }
 
 void controls() {
@@ -66,7 +71,7 @@ int main() {
 	BeginDrawing();
 	ClearBackground(GRAY);
 	controls();
-	draw_map({0, 0, 100, 100});
+	draw_map({0, 0, 200, 200});
 	EndDrawing();
     }
     CloseWindow();
