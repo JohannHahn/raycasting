@@ -1,5 +1,6 @@
 *.exe
 CMake*
+CMakeFiles/
 *.cmake
 *.txt
 *Makefile*
