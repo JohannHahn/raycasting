@@ -1,19 +1,9 @@
 CMakeFiles/raycast.dir/main.cpp.obj: \
  C:\Users\wanis\Desktop\raycasting\main.cpp \
- C:/PROGRA~2/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/cstring \
+ C:/PROGRA~2/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/iostream \
  C:/PROGRA~2/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/x86_64-w64-mingw32/bits/c++config.h \
  C:/PROGRA~2/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/x86_64-w64-mingw32/bits/os_defines.h \
  C:/PROGRA~2/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/x86_64-w64-mingw32/bits/cpu_defines.h \
- C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/string.h \
- C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/crtdefs.h \
- C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/_mingw.h \
- C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/_mingw_mac.h \
- C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/_mingw_secapi.h \
- C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/vadefs.h \
- C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/sdks/_mingw_directx.h \
- C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/sdks/_mingw_ddk.h \
- C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/sec_api/string_s.h \
- C:/PROGRA~2/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/iostream \
  C:/PROGRA~2/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/ostream \
  C:/PROGRA~2/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/ios \
  C:/PROGRA~2/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/iosfwd \
@@ -22,6 +12,13 @@ CMakeFiles/raycast.dir/main.cpp.obj: \
  C:/PROGRA~2/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/bits/postypes.h \
  C:/PROGRA~2/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/cwchar \
  C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/wchar.h \
+ C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/crtdefs.h \
+ C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/_mingw.h \
+ C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/_mingw_mac.h \
+ C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/_mingw_secapi.h \
+ C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/vadefs.h \
+ C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/sdks/_mingw_directx.h \
+ C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/sdks/_mingw_ddk.h \
  C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/_mingw_print_push.h \
  C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/_mingw_off_t.h \
  C:/PROGRA~2/mingw64/x86_64-w64-mingw32/include/_mingw_stat64.h \

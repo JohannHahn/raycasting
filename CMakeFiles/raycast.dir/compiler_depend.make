@@ -57,7 +57,6 @@ CMakeFiles/raycast.dir/main.cpp.obj: main.cpp \
   C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/cstdint \
   C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/cstdio \
   C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/cstdlib \
-  C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/cstring \
   C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/cwchar \
   C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/cwctype \
   C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/debug/assertions.h \
@@ -137,7 +136,6 @@ CMakeFiles/raycast.dir/main.cpp.obj: main.cpp \
   C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sdks/_mingw_directx.h \
   C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sec_api/stdio_s.h \
   C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sec_api/stdlib_s.h \
-  C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sec_api/string_s.h \
   C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sec_api/sys/timeb_s.h \
   C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sec_api/wchar_s.h \
   C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/signal.h \
@@ -146,7 +144,6 @@ CMakeFiles/raycast.dir/main.cpp.obj: main.cpp \
   C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/stdint.h \
   C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/stdio.h \
   C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/stdlib.h \
-  C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/string.h \
   C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/swprintf.inl \
   C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sys/timeb.h \
   C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sys/types.h \
@@ -184,8 +181,6 @@ C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include-fixed/
 C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/bits/allocator.h:
 
 C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/bits/ostream_insert.h:
-
-C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/cstring:
 
 C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/bits/locale_facets.tcc:
 
@@ -263,6 +258,8 @@ C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/bi
 
 C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/bits/move.h:
 
+C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/ext/new_allocator.h:
+
 C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/stddef.h:
 
 C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/cwchar:
@@ -306,8 +303,6 @@ C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/de
 C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/string:
 
 C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/exception:
-
-C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/ext/new_allocator.h:
 
 C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/ext/numeric_traits.h:
 
@@ -360,8 +355,6 @@ C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/tr
 C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/tr1/hypergeometric.tcc:
 
 C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/tr1/legendre_function.tcc:
-
-C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/string.h:
 
 C:/Program\ Files\ (x86)/mingw64/lib/gcc/x86_64-w64-mingw32/8.1.0/include/c++/tr1/modified_bessel_func.tcc:
 
@@ -438,8 +431,6 @@ C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sdks/_mingw_directx.
 C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sec_api/stdio_s.h:
 
 C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sec_api/stdlib_s.h:
-
-C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sec_api/string_s.h:
 
 C:/Program\ Files\ (x86)/mingw64/x86_64-w64-mingw32/include/sec_api/sys/timeb_s.h:
 
