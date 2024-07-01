@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
 
 project(raycast)
-
 add_subdirectory(raylib)
 include_directories(raylib/src)
 

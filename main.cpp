@@ -1,4 +1,5 @@
 #include <iostream>
+#include <inttypes.h>
 #include "raylib/src/raylib.h"
 #include "raylib/src/raymath.h"
 
@@ -9,15 +10,36 @@ constexpr const char* window_title = "not doom";
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
-Vector2 player_pos = {window_size.x, window_size.y};
-Vector2 player_dir = {1, 1};
-float player_speed = fps * 10.f;
-float near_plane = 0.5f;
-
 Vector2 map_dims = {window_size.x / 3.f, window_size.y / 3.f};
 Color map_bg = DARKGRAY;
 Image map_img = GenImageColor(map_dims.x, map_dims.y, map_bg);
 Texture map_txt;
+
+Vector2 to_map(Vector2 v) {
+    return Vector2Multiply(Vector2Divide(v, window_size), map_dims);
+}
+
+
+struct Player {
+    Vector2 position = {window_size.x / 2, window_size.y / 2};
+    Vector2 direction = {0, 1};
+    float speed = fps * 10.f;
+    float near_plane = 100.f;
+    void change_dir(float angle) {
+	direction = Vector2Scale(Vector2Normalize(Vector2Rotate(direction, angle)), near_plane);
+    }
+    Vector2 position_map() {
+	return to_map(position);
+    }
+    Vector2 direction_map() {
+	return to_map(direction);
+    }
+    Vector2 fov_left() {
+	return 
+    }
+};
+Player player;
+
 
 constexpr u64 index(u64 x, u64 y) {
     return x + y * num_cols;
@@ -51,32 +73,32 @@ void draw_map() {
 	    }
 	}
     }
-    ImageDrawCircleV(&map_img, Vector2Multiply(Vector2Divide(player_pos, window_size), map_dims), 10.f, RED);
+    ImageDrawCircleV(&map_img, player.position_map(), 10.f, RED);
+    ImageDrawLineEx(&map_img, player.position_map(), Vector2Add(player.position_map(), player.direction_map()), 5, RED);
 
     UpdateTexture(map_txt, map_img.data); 
     DrawTexture(map_txt, 0, 0, WHITE);
 }
-// TODO: Left / Right should rotate
 void controls() {
     float dt = GetFrameTime();
     if (IsKeyDown(KEY_DOWN)) {
-	player_pos.y += player_speed * dt;
+	player.position.y += player.speed * dt;
     } 
     if (IsKeyDown(KEY_UP)) {
-	player_pos.y -= player_speed * dt;
+	player.position.y -= player.speed * dt;
     } 
     if (IsKeyDown(KEY_LEFT)) {
-	player_pos.x -= player_speed * dt;
+	player.position.x -= player.speed * dt;
     } 
     if (IsKeyDown(KEY_RIGHT)) {
-	player_pos.x += player_speed * dt;
+	player.position.x += player.speed * dt;
     } 
 }
 
 int main() {
-    std::cout << "hi\n";
     InitWindow(window_size.x, window_size.y, window_title);
     SetTargetFPS(fps);
+    player.change_dir(3.14f);
     map_txt = LoadTextureFromImage(map_img);
     while(!WindowShouldClose()) {
 	BeginDrawing();
