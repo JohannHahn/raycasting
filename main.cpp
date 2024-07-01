@@ -19,23 +19,15 @@ Vector2 to_map(Vector2 v) {
     return Vector2Multiply(Vector2Divide(v, window_size), map_dims);
 }
 
-
+// TODO: player position in normalized coordinates
 struct Player {
     Vector2 position = {window_size.x / 2, window_size.y / 2};
     Vector2 direction = {0, 1};
-    float speed = fps * 10.f;
+    float speed = 2;
+    float rotation_speed = PI / fps;
     float near_plane = 100.f;
     void change_dir(float angle) {
-	direction = Vector2Scale(Vector2Normalize(Vector2Rotate(direction, angle)), near_plane);
-    }
-    Vector2 position_map() {
-	return to_map(position);
-    }
-    Vector2 direction_map() {
-	return to_map(direction);
-    }
-    Vector2 fov_left() {
-	return 
+	direction = Vector2Normalize(Vector2Rotate(direction, angle * rotation_speed));
     }
 };
 Player player;
@@ -58,6 +50,17 @@ bool level[num_rows * num_cols] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
+Vector2 next_point(Vector2 p, Vector2 dir) {
+    Vector2 p_next;
+    if (dir.x > 0) {
+	p_next.x = std::ceil(p.x + dir.x);
+    }
+    else if (dir.x < 0) {
+	//p_next.x = std::floor(p.x + dir.x);
+    }
+    return p_next;
+}
+
 void draw_map() {
     ImageClearBackground(&map_img, map_bg);
     Vector2 size = {map_dims.x / num_cols, map_dims.y / num_rows};
@@ -73,8 +76,14 @@ void draw_map() {
 	    }
 	}
     }
-    ImageDrawCircleV(&map_img, player.position_map(), 10.f, RED);
-    ImageDrawLineEx(&map_img, player.position_map(), Vector2Add(player.position_map(), player.direction_map()), 5, RED);
+    Vector2 player_map = to_map(player.position);
+    ImageDrawCircleV(&map_img, player_map, 10.f, RED);
+    Vector2 end = to_map(Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane)));
+    ImageDrawLineEx(&map_img, player_map, end, 5, RED);
+    ImageDrawCircleV(&map_img,end, 10, BLUE);
+    Vector2 p_next = next_point(end, to_map(player.direction));
+    ImageDrawLineEx(&map_img, end, p_next, 5, RED);
+    ImageDrawCircleV(&map_img, p_next, 10, GREEN);
 
     UpdateTexture(map_txt, map_img.data); 
     DrawTexture(map_txt, 0, 0, WHITE);
@@ -82,17 +91,23 @@ void draw_map() {
 void controls() {
     float dt = GetFrameTime();
     if (IsKeyDown(KEY_DOWN)) {
-	player.position.y += player.speed * dt;
+	//player.position.y += player.speed * dt;
+	player.position = Vector2Subtract(player.position, Vector2Scale(player.direction, player.speed));
     } 
     if (IsKeyDown(KEY_UP)) {
-	player.position.y -= player.speed * dt;
+	//player.position.y -= player.speed * dt;
+	player.position = Vector2Add(player.position, Vector2Scale(player.direction, player.speed));
     } 
     if (IsKeyDown(KEY_LEFT)) {
-	player.position.x -= player.speed * dt;
+	player.change_dir(-1);
     } 
     if (IsKeyDown(KEY_RIGHT)) {
-	player.position.x += player.speed * dt;
+	player.change_dir(1);
     } 
+}
+
+void draw_walls() {
+
 }
 
 int main() {
@@ -102,7 +117,7 @@ int main() {
     map_txt = LoadTextureFromImage(map_img);
     while(!WindowShouldClose()) {
 	BeginDrawing();
-	ClearBackground(GRAY);
+	ClearBackground(BLACK);
 	controls();
 	draw_map();
 	EndDrawing();
