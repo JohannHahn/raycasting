@@ -1,3 +1,4 @@
+#include <cassert>
 #include <iostream>
 #include <inttypes.h>
 #include "raylib/src/raylib.h"
@@ -16,8 +17,6 @@ Color map_bg = DARKGRAY;
 Image map_img = GenImageColor(map_boundary.width, map_boundary.height, map_bg);
 Texture map_txt;
 
-
-// TODO: player position in normalized coordinates
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
     Vector2 direction = {0.f, 1.f};
@@ -57,8 +56,8 @@ float snap(float n, float dn) {
 }
 
 Vector2 next_point(Vector2 p, Vector2 dir) {
-    Vector2 p2 = Vector2Add(p, dir);
     Vector2 p_next = {0,0};
+    Vector2 p2 = Vector2Add(p, dir);
     //y1 = mx1 + c
     //y2 = mx2 + c
     //c = y1 - mx1
@@ -69,20 +68,23 @@ Vector2 next_point(Vector2 p, Vector2 dir) {
 	float c = p.y - (p.x * m);
 	p_next.x = snap(p2.x, dir.x);
 	p_next.y = p_next.x * m + c;
+	Vector2 second_candidate;
+	std::cout << "m = " << m << ", c = " << c << "\n";
 	if (m != 0.f) {
-	    Vector2 second_candidate;
 	    second_candidate.y = snap(p2.y, dir.y);
 	    second_candidate.x = (second_candidate.y - c) / m;
-	    float first_distance = Vector2Length(Vector2Subtract(p_next, p));
-	    float second_distance = Vector2Length(Vector2Subtract(second_candidate, p));
+	    float first_distance = Vector2Length(Vector2Subtract(p_next, p2));
+	    float second_distance = Vector2Length(Vector2Subtract(second_candidate, p2));
 	    if (second_distance < first_distance) {
-		std::cout << dir.x << ", " << dir.y << "\n";
 		return second_candidate;
 	    }
 	}
 	return p_next;
     }
-    return p2;
+    assert(0 && "dir.x = 0 not handled lol");
+    p_next.x = p2.x;
+    p_next.y = snap(p2.y, dir.y);
+    return p_next;
 }
 
 void draw_map(Rectangle boundary) {
@@ -106,8 +108,7 @@ void draw_map(Rectangle boundary) {
     ImageDrawCircleV(&map_img, player_map, player.size * size.x, player.color);
     ImageDrawLineV(&map_img, player_map, p2_map, player.color);
     ImageDrawCircleV(&map_img, p2_map, player.size * size.x / 2.f, player.color);
-    Vector2 next = Vector2Multiply(next_point(player.position, player.direction), size);
-    ImageDrawLineV(&map_img, p2_map, next, BLUE);
+
 
     UpdateTexture(map_txt, map_img.data); 
     DrawTexturePro(map_txt, map_boundary, map_boundary, {0.f, 0.f}, 0.f, WHITE);
@@ -131,7 +132,12 @@ void controls() {
 }
 
 void draw_walls() {
-
+    Vector2 size = {player.near_plane * 2.f / window_size.x, player.near_plane * 2.f / window_size.y};
+    for(u64 x = 0; x < window_size.x; ++x) {
+	Vector2 next = next_point(player.position, Vector2Scale(player.direction, player.near_plane));
+	u64 lx = std::floor(next.x);
+	u64 ly = std::floor(next.y);
+    }
 }
 
 int main() {
