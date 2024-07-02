@@ -10,25 +10,25 @@ constexpr const char* window_title = "not doom";
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
-Vector2 map_dims = {window_size.x / 3.f, window_size.y / 3.f};
+constexpr float map_factor = 1.f;
+Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Color map_bg = DARKGRAY;
-Image map_img = GenImageColor(map_dims.x, map_dims.y, map_bg);
+Image map_img = GenImageColor(map_boundary.width, map_boundary.height, map_bg);
 Texture map_txt;
 
-Vector2 to_map(Vector2 v) {
-    return Vector2Multiply(Vector2Divide(v, window_size), map_dims);
-}
 
 // TODO: player position in normalized coordinates
 struct Player {
-    Vector2 position = {window_size.x / 2, window_size.y / 2};
-    Vector2 direction = {0, 1};
-    float speed = 2;
+    Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
+    Vector2 direction = {0.f, 1.f};
+    float speed = 0.1f;
     float rotation_speed = PI / fps;
-    float near_plane = 100.f;
+    float near_plane = 0.2f;
     void change_dir(float angle) {
 	direction = Vector2Normalize(Vector2Rotate(direction, angle * rotation_speed));
     }
+    Color color = RED;
+    float size = 0.1f;
 };
 Player player;
 
@@ -50,43 +50,67 @@ bool level[num_rows * num_cols] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
-Vector2 next_point(Vector2 p, Vector2 dir) {
-    Vector2 p_next;
-    if (dir.x > 0) {
-	p_next.x = std::ceil(p.x + dir.x);
-    }
-    else if (dir.x < 0) {
-	//p_next.x = std::floor(p.x + dir.x);
-    }
-    return p_next;
+float snap(float n, float dn) {
+    if(dn > 0) return std::ceil(n);
+    if(dn < 0) return std::floor(n);
+    return n;
 }
 
-void draw_map() {
+Vector2 next_point(Vector2 p, Vector2 dir) {
+    Vector2 p2 = Vector2Add(p, dir);
+    Vector2 p_next = {0,0};
+    //y1 = mx1 + c
+    //y2 = mx2 + c
+    //c = y1 - mx1
+    //m = dy / dx
+    //x = y2-c/m
+    if (dir.x != 0.f) {
+	float m = dir.y / dir.x;
+	float c = p.y - (p.x * m);
+	p_next.x = snap(p2.x, dir.x);
+	p_next.y = p_next.x * m + c;
+	if (m != 0.f) {
+	    Vector2 second_candidate;
+	    second_candidate.y = snap(p2.y, dir.y);
+	    second_candidate.x = (second_candidate.y - c) / m;
+	    float first_distance = Vector2Length(Vector2Subtract(p_next, p));
+	    float second_distance = Vector2Length(Vector2Subtract(second_candidate, p));
+	    if (second_distance < first_distance) {
+		std::cout << dir.x << ", " << dir.y << "\n";
+		return second_candidate;
+	    }
+	}
+	return p_next;
+    }
+    return p2;
+}
+
+void draw_map(Rectangle boundary) {
     ImageClearBackground(&map_img, map_bg);
-    Vector2 size = {map_dims.x / num_cols, map_dims.y / num_rows};
+    Vector2 size = {boundary.width / num_cols, boundary.height / num_rows};
+    for (u64 x = 0; x < num_cols; ++x) {
+	ImageDrawLine(&map_img, x * size.x, 0, x*size.x, num_rows * size.y, RAYWHITE);
+    }
     for (u64 y = 0; y < num_rows; ++y) {
-	float y_scaled = y * size.y;
-	float x_inverted_scaled = y * size.x;
-	for (u64 x = 0; x < num_cols; ++x) {
-	    float x_scaled = x * size.x;
-	    ImageDrawLine(&map_img, 0, y_scaled, map_dims.x- 1, y_scaled, RAYWHITE);
-	    ImageDrawLine(&map_img, x_inverted_scaled, 0, x_inverted_scaled, map_dims.y - 1, RAYWHITE);
-	    if (level[index(x, y)]) {
-		ImageDrawRectangleRec(&map_img, {x_scaled, y_scaled, size.x, size.y}, WHITE);
+	ImageDrawLine(&map_img, 0, y * size.y, num_cols * size.x, y * size.y, RAYWHITE);
+    }
+    for(u64 y = 0; y < num_rows; ++y) {
+	for(u64 x = 0; x < num_cols; ++x) {
+	    if(level[index(x, y)]) {
+		ImageDrawRectangleV(&map_img, {x * size.x, y * size.y}, size, WHITE);
 	    }
 	}
     }
-    Vector2 player_map = to_map(player.position);
-    ImageDrawCircleV(&map_img, player_map, 10.f, RED);
-    Vector2 end = to_map(Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane)));
-    ImageDrawLineEx(&map_img, player_map, end, 5, RED);
-    ImageDrawCircleV(&map_img,end, 10, BLUE);
-    Vector2 p_next = next_point(end, to_map(player.direction));
-    ImageDrawLineEx(&map_img, end, p_next, 5, RED);
-    ImageDrawCircleV(&map_img, p_next, 10, GREEN);
+    Vector2 player_map = Vector2Multiply(player.position, size);
+    Vector2 p2_map = Vector2Multiply(Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane)), size);
+    ImageDrawCircleV(&map_img, player_map, player.size * size.x, player.color);
+    ImageDrawLineV(&map_img, player_map, p2_map, player.color);
+    ImageDrawCircleV(&map_img, p2_map, player.size * size.x / 2.f, player.color);
+    Vector2 next = Vector2Multiply(next_point(player.position, player.direction), size);
+    ImageDrawLineV(&map_img, p2_map, next, BLUE);
 
     UpdateTexture(map_txt, map_img.data); 
-    DrawTexture(map_txt, 0, 0, WHITE);
+    DrawTexturePro(map_txt, map_boundary, map_boundary, {0.f, 0.f}, 0.f, WHITE);
 }
 void controls() {
     float dt = GetFrameTime();
@@ -119,7 +143,8 @@ int main() {
 	BeginDrawing();
 	ClearBackground(BLACK);
 	controls();
-	draw_map();
+	draw_map(map_boundary);
+	DrawFPS(0, 0);
 	EndDrawing();
     }
     CloseWindow();
