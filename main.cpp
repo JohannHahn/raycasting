@@ -16,6 +16,7 @@ Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / 
 Color map_bg = DARKGRAY;
 Image map_img = GenImageColor(map_boundary.width, map_boundary.height, map_bg);
 Texture map_txt;
+Vector2 to_screen = Vector2Multiply(window_size, {1.f / num_cols, 1.f / num_rows});
 
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
@@ -23,6 +24,7 @@ struct Player {
     float speed = 0.1f;
     float rotation_speed = PI / fps;
     float near_plane = 0.2f;
+    float far_plane = 10.f;
     void change_dir(float angle) {
 	direction = Vector2Normalize(Vector2Rotate(direction, angle * rotation_speed));
     }
@@ -69,7 +71,6 @@ Vector2 next_point(Vector2 p, Vector2 dir) {
 	p_next.x = snap(p2.x, dir.x);
 	p_next.y = p_next.x * m + c;
 	Vector2 second_candidate;
-	std::cout << "m = " << m << ", c = " << c << "\n";
 	if (m != 0.f) {
 	    second_candidate.y = snap(p2.y, dir.y);
 	    second_candidate.x = (second_candidate.y - c) / m;
@@ -81,7 +82,6 @@ Vector2 next_point(Vector2 p, Vector2 dir) {
 	}
 	return p_next;
     }
-    assert(0 && "dir.x = 0 not handled lol");
     p_next.x = p2.x;
     p_next.y = snap(p2.y, dir.y);
     return p_next;
@@ -131,12 +131,31 @@ void controls() {
     } 
 }
 
+
 void draw_walls() {
     Vector2 size = {player.near_plane * 2.f / window_size.x, player.near_plane * 2.f / window_size.y};
+    Vector2 cell = player.position;
+    Vector2 p2 = Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane));
+    Vector2 left = Vector2Add(p2, Vector2Rotate(Vector2Scale(player.direction, player.near_plane), PI / 2.f));
+    Vector2 right = Vector2Add(p2, Vector2Rotate(Vector2Scale(player.direction, player.near_plane), -PI / 2.f));
+    Vector2 left_to_right = Vector2Scale(Vector2Normalize(Vector2Subtract(right, left)), size.x);
+    Vector2 direction = Vector2Normalize(Vector2Subtract(player.position, left));
     for(u64 x = 0; x < window_size.x; ++x) {
-	Vector2 next = next_point(player.position, Vector2Scale(player.direction, player.near_plane));
-	u64 lx = std::floor(next.x);
-	u64 ly = std::floor(next.y);
+	for (u64 depth = 0; depth < player.far_plane - 1; ++depth) {
+	    u64 lx = std::floor(cell.x);
+	    u64 ly = std::floor(cell.y);
+	    if (lx < num_cols && ly < num_rows) {
+		float distance = Vector2Length(Vector2Subtract(player.position, cell));
+		if(level[index(lx, ly)] && distance != 0) {
+		    DrawRectangle(x, 0, 1, window_size.y / distance, WHITE);
+		    break;
+		}
+		cell = next_point(cell, Vector2Scale(direction, player.near_plane));
+	    }
+	}
+	DrawLineV(Vector2Multiply(player.position, to_screen), Vector2Multiply(left, to_screen), BLUE);
+	left = Vector2Add(left, left_to_right);
+	direction = Vector2Normalize(Vector2Subtract(left, player.position));
     }
 }
 
@@ -150,6 +169,7 @@ int main() {
 	ClearBackground(BLACK);
 	controls();
 	draw_map(map_boundary);
+	draw_walls();
 	DrawFPS(0, 0);
 	EndDrawing();
     }
