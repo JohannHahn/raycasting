@@ -11,19 +11,20 @@ constexpr const char* window_title = "not doom";
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
-constexpr float map_factor = 1.f;
+constexpr float map_factor = 3.f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Color map_bg = DARKGRAY;
 Image map_img = GenImageColor(map_boundary.width, map_boundary.height, map_bg);
 Texture map_txt;
-Vector2 to_screen = Vector2Multiply(window_size, {1.f / num_cols, 1.f / num_rows});
+Vector2 to_screen = {window_size. x / num_cols, window_size.y / num_rows};
+
 
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
     Vector2 direction = {0.f, 1.f};
     float speed = 0.1f;
     float rotation_speed = PI / fps;
-    float near_plane = 0.2f;
+    float near_plane = 0.5f;
     float far_plane = 10.f;
     void change_dir(float angle) {
 	direction = Vector2Normalize(Vector2Rotate(direction, angle * rotation_speed));
@@ -36,6 +37,15 @@ Player player;
 
 constexpr u64 index(u64 x, u64 y) {
     return x + y * num_cols;
+}
+
+Rectangle squish_rec(Rectangle r, float factor) {
+    float a = r.height * (1.f - factor) / 2.f;
+    return {r.x, r.y + a, r.width, r.height * factor};
+}
+
+Vector2 to_map(Vector2 v) {
+    return Vector2Multiply(v, {map_boundary.width / num_cols, map_boundary.height / num_rows});
 }
 
 bool level[num_rows * num_cols] = {
@@ -115,13 +125,21 @@ void draw_map(Rectangle boundary) {
 }
 void controls() {
     float dt = GetFrameTime();
-    if (IsKeyDown(KEY_DOWN)) {
+    if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
 	//player.position.y += player.speed * dt;
 	player.position = Vector2Subtract(player.position, Vector2Scale(player.direction, player.speed));
     } 
-    if (IsKeyDown(KEY_UP)) {
+    if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
 	//player.position.y -= player.speed * dt;
 	player.position = Vector2Add(player.position, Vector2Scale(player.direction, player.speed));
+    } 
+    if (IsKeyDown(KEY_A)) {
+	//player.position.y -= player.speed * dt;
+	player.position = Vector2Add(player.position, Vector2Scale(Vector2Rotate(player.direction, -PI/2.f), player.speed));
+    } 
+    if (IsKeyDown(KEY_D)) {
+	//player.position.y -= player.speed * dt;
+	player.position = Vector2Add(player.position, Vector2Scale(Vector2Rotate(player.direction, PI/2.f), player.speed));
     } 
     if (IsKeyDown(KEY_LEFT)) {
 	player.change_dir(-1);
@@ -133,27 +151,36 @@ void controls() {
 
 
 void draw_walls() {
-    Vector2 size = {player.near_plane * 2.f / window_size.x, player.near_plane * 2.f / window_size.y};
     Vector2 cell = player.position;
     Vector2 p2 = Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane));
-    Vector2 left = Vector2Add(p2, Vector2Rotate(Vector2Scale(player.direction, player.near_plane), PI / 2.f));
-    Vector2 right = Vector2Add(p2, Vector2Rotate(Vector2Scale(player.direction, player.near_plane), -PI / 2.f));
-    Vector2 left_to_right = Vector2Scale(Vector2Normalize(Vector2Subtract(right, left)), size.x);
-    Vector2 direction = Vector2Normalize(Vector2Subtract(player.position, left));
+    Vector2 left = Vector2Add(p2, Vector2Rotate(Vector2Scale(player.direction, player.near_plane), -PI / 2.f));
+    Vector2 right = Vector2Add(p2, Vector2Rotate(Vector2Scale(player.direction, player.near_plane), PI / 2.f));
+    Vector2 left_to_right = Vector2Scale(Vector2Normalize(Vector2Subtract(right, left)), player.near_plane * 2.f / window_size.x);
+    Vector2 direction = Vector2Normalize(Vector2Subtract(left, player.position));
+    Vector2 prev = cell;
+    DrawLineV(to_map(player.position), to_map(left), BLUE);
+    DrawLineV(to_map(player.position), to_map(right), BLUE);
     for(u64 x = 0; x < window_size.x; ++x) {
-	for (u64 depth = 0; depth < player.far_plane - 1; ++depth) {
-	    u64 lx = std::floor(cell.x);
-	    u64 ly = std::floor(cell.y);
+	cell = player.position;
+	for (u64 depth = 0; depth < player.far_plane; ++depth) {
+	    u64 lx = std::ceil(cell.x);
+	    u64 ly = std::ceil(cell.y);
+	    u64 lx2 = std::floor(cell.x);
+	    u64 ly2 = std::floor(cell.y);
 	    if (lx < num_cols && ly < num_rows) {
 		float distance = Vector2Length(Vector2Subtract(player.position, cell));
-		if(level[index(lx, ly)] && distance != 0) {
-		    DrawRectangle(x, 0, 1, window_size.y / distance, WHITE);
-		    break;
-		}
+		prev = cell;	
 		cell = next_point(cell, Vector2Scale(direction, player.near_plane));
+		if(level[index(lx, ly)]) {
+		    DrawRectangleRec(squish_rec({(float)x, 0, 1, window_size.y}, 1.f / distance), WHITE);
+		    DrawLineV(to_map(prev), to_map(cell), BLUE);
+		}
+		if(level[index(lx2, ly2)]) {
+		    DrawRectangleRec(squish_rec({(float)x, 0, 1, window_size.y}, 1.f / distance), WHITE);
+		    DrawLineV(to_map(prev), to_map(cell), BLUE);
+		}
 	    }
 	}
-	DrawLineV(Vector2Multiply(player.position, to_screen), Vector2Multiply(left, to_screen), BLUE);
 	left = Vector2Add(left, left_to_right);
 	direction = Vector2Normalize(Vector2Subtract(left, player.position));
     }
