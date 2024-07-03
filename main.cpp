@@ -11,7 +11,7 @@ constexpr const char* window_title = "not doom";
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
-constexpr float map_factor = 3.f;
+constexpr float map_factor = 2.f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Color map_bg = DARKGRAY;
 Image map_img = GenImageColor(map_boundary.width, map_boundary.height, map_bg);
@@ -23,9 +23,9 @@ struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
     Vector2 direction = {0.f, 1.f};
     float speed = 0.1f;
-    float rotation_speed = PI / fps;
-    float near_plane = 0.5f;
-    float far_plane = 10.f;
+    float rotation_speed = PI / (fps * 2.f);
+    float near_plane = 0.05f;
+    float far_plane = num_cols;
     void change_dir(float angle) {
 	direction = Vector2Normalize(Vector2Rotate(direction, angle * rotation_speed));
     }
@@ -51,13 +51,13 @@ Vector2 to_map(Vector2 v) {
 bool level[num_rows * num_cols] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 1, 0, 1, 0, 0, 0,
+    0, 0, 0, 0, 1, 0, 1, 1, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
@@ -68,6 +68,9 @@ float snap(float n, float dn) {
 }
 
 Vector2 next_point(Vector2 p, Vector2 dir) {
+    if (std::abs(dir.x) < 0.0001f) {
+	dir.x = 0.f;	
+    }
     Vector2 p_next = {0,0};
     Vector2 p2 = Vector2Add(p, dir);
     //y1 = mx1 + c
@@ -80,6 +83,12 @@ Vector2 next_point(Vector2 p, Vector2 dir) {
 	float c = p.y - (p.x * m);
 	p_next.x = snap(p2.x, dir.x);
 	p_next.y = p_next.x * m + c;
+	if(p_next.x > 100000 || p_next.y > 10000) {
+	    std::cout << "p_next.y =" << p_next.y << ", m = " << m  << ", c = " << c << ", p.x = " << p_next.x << "\n";
+	    std::cout << "dir = " << dir.x << ", " << dir.y << ", p = " << p.x << ", " << p.y << "\n";
+	    return p2;
+
+	}
 	Vector2 second_candidate;
 	if (m != 0.f) {
 	    second_candidate.y = snap(p2.y, dir.y);
@@ -162,24 +171,24 @@ void draw_walls() {
     DrawLineV(to_map(player.position), to_map(right), BLUE);
     for(u64 x = 0; x < window_size.x; ++x) {
 	cell = player.position;
-	for (u64 depth = 0; depth < player.far_plane; ++depth) {
-	    u64 lx = std::ceil(cell.x);
-	    u64 ly = std::ceil(cell.y);
-	    u64 lx2 = std::floor(cell.x);
-	    u64 ly2 = std::floor(cell.y);
-	    if (lx < num_cols && ly < num_rows) {
-		float distance = Vector2Length(Vector2Subtract(player.position, cell));
+	Color c = {0xAA, 0x18, 0x18, 0xFF};
+	for (u64 depth = 0; depth < player.far_plane * 2; ++depth) {
+	    cell = Vector2Add(cell, Vector2Scale(Vector2Normalize(Vector2Subtract(cell, prev)), player.near_plane));
+	    u64 lx = std::floor(cell.x);
+	    u64 ly = std::floor(cell.y);
+		float distance = Vector2Length(Vector2Subtract(Vector2Subtract(left, player.direction), cell));
+		c = ColorBrightness(c, player.far_plane / distance);
 		prev = cell;	
 		cell = next_point(cell, Vector2Scale(direction, player.near_plane));
-		if(level[index(lx, ly)]) {
-		    DrawRectangleRec(squish_rec({(float)x, 0, 1, window_size.y}, 1.f / distance), WHITE);
-		    DrawLineV(to_map(prev), to_map(cell), BLUE);
+		if (x == (u64)window_size.x / 2){
+		    DrawLineV(to_map(prev), to_map(cell), BLUE); 
+		    DrawCircleV(to_map(prev), 3, RED);
+		    Vector2 v = to_map({float(lx), float(ly)});
+		    DrawRectangleLines(v.x, v.y, to_screen.x / 2.f, to_screen.y / 2.f, RED);
 		}
-		if(level[index(lx2, ly2)]) {
-		    DrawRectangleRec(squish_rec({(float)x, 0, 1, window_size.y}, 1.f / distance), WHITE);
-		    DrawLineV(to_map(prev), to_map(cell), BLUE);
+		if(lx < num_cols && ly < num_rows && level[index(lx, ly)]) {
+		    DrawRectangleRec(squish_rec({(float)x, 0, 1, window_size.y}, 1.f / distance), GRAY);
 		}
-	    }
 	}
 	left = Vector2Add(left, left_to_right);
 	direction = Vector2Normalize(Vector2Subtract(left, player.position));
