@@ -62,14 +62,20 @@ bool level[num_rows * num_cols] = {
 };
 
 float snap(float n, float dn) {
-    if(dn > 0) return std::ceil(n);
-    if(dn < 0) return std::floor(n);
+    
+    if(dn > 0) {
+	return std::ceil(n + EPSILON);
+    }
+
+    if(dn < 0) { 
+	return std::floor(n - EPSILON);
+    }
     return n;
 }
 
 Vector2 next_point(Vector2 p, Vector2 dir) {
     if (std::abs(dir.x) < 0.0001f) {
-	dir.x = 0.f;	
+//	dir.x = 0.f;	
     }
     Vector2 p_next = {0,0};
     Vector2 p2 = Vector2Add(p, dir);
@@ -83,12 +89,6 @@ Vector2 next_point(Vector2 p, Vector2 dir) {
 	float c = p.y - (p.x * m);
 	p_next.x = snap(p2.x, dir.x);
 	p_next.y = p_next.x * m + c;
-	if(p_next.x > 100000 || p_next.y > 10000) {
-	    std::cout << "p_next.y =" << p_next.y << ", m = " << m  << ", c = " << c << ", p.x = " << p_next.x << "\n";
-	    std::cout << "dir = " << dir.x << ", " << dir.y << ", p = " << p.x << ", " << p.y << "\n";
-	    return p2;
-
-	}
 	Vector2 second_candidate;
 	if (m != 0.f) {
 	    second_candidate.y = snap(p2.y, dir.y);
@@ -173,22 +173,23 @@ void draw_walls() {
 	cell = player.position;
 	Color c = {0xAA, 0x18, 0x18, 0xFF};
 	for (u64 depth = 0; depth < player.far_plane * 2; ++depth) {
-	    cell = Vector2Add(cell, Vector2Scale(Vector2Normalize(Vector2Subtract(cell, prev)), player.near_plane));
+	    cell = Vector2Add(cell, Vector2Scale(Vector2Normalize(Vector2Subtract(cell, prev)), EPSILON));
 	    u64 lx = std::floor(cell.x);
 	    u64 ly = std::floor(cell.y);
-		float distance = Vector2Length(Vector2Subtract(Vector2Subtract(left, player.direction), cell));
-		c = ColorBrightness(c, player.far_plane / distance);
-		prev = cell;	
-		cell = next_point(cell, Vector2Scale(direction, player.near_plane));
-		if (x == (u64)window_size.x / 2){
-		    DrawLineV(to_map(prev), to_map(cell), BLUE); 
-		    DrawCircleV(to_map(prev), 3, RED);
-		    Vector2 v = to_map({float(lx), float(ly)});
-		    DrawRectangleLines(v.x, v.y, to_screen.x / 2.f, to_screen.y / 2.f, RED);
-		}
-		if(lx < num_cols && ly < num_rows && level[index(lx, ly)]) {
-		    DrawRectangleRec(squish_rec({(float)x, 0, 1, window_size.y}, 1.f / distance), GRAY);
-		}
+	    float distance = Vector2Length(Vector2Subtract(cell, player.position));
+	    c = ColorBrightness(c, player.far_plane / distance);
+	    prev = cell;	
+	    cell = next_point(cell, Vector2Scale(direction, player.near_plane));
+	    if(lx < num_cols && ly < num_rows && level[index(lx, ly)]) {
+		DrawRectangleRec(squish_rec({(float)x, 0, 3, window_size.y}, 0.5f / distance), GRAY);
+		break;
+	    }
+	    if (x == (u64)window_size.x / 2){
+		DrawLineV(to_map(prev), to_map(cell), BLUE); 
+		DrawCircleV(to_map(prev), 3, RED);
+		Vector2 v = to_map({float(lx), float(ly)});
+		DrawRectangleLines(v.x, v.y, to_screen.x / map_factor, to_screen.y / map_factor, RED);
+	    }
 	}
 	left = Vector2Add(left, left_to_right);
 	direction = Vector2Normalize(Vector2Subtract(left, player.position));
@@ -204,6 +205,10 @@ int main() {
 	BeginDrawing();
 	ClearBackground(BLACK);
 	controls();
+	Color floor = {0x18, 0x18, 0x18, 0xFF};
+	Color ceiling = {0x10, 0x10, 0x10, 0xFF};
+	DrawRectangle(0, 0, window_size.x, window_size.y / 4.f, ceiling);
+	DrawRectangle(0, window_size.y - window_size.y / 4.f, window_size.x, window_size.y / 4.f, floor);
 	draw_map(map_boundary);
 	draw_walls();
 	DrawFPS(0, 0);
