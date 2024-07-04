@@ -24,7 +24,7 @@ struct Player {
     Vector2 direction = {0.f, 1.f};
     float speed = 0.1f;
     float rotation_speed = PI / (fps * 2.f);
-    float near_plane = 0.05f;
+    float near_plane = 0.01f;
     float far_plane = num_cols;
     void change_dir(float angle) {
 	direction = Vector2Normalize(Vector2Rotate(direction, angle * rotation_speed));
