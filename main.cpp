@@ -11,7 +11,7 @@ constexpr const char* window_title = "not doom";
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
-constexpr float map_factor = 2.f;
+constexpr float map_factor = 1.f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Color map_bg = DARKGRAY;
 Image map_img = GenImageColor(map_boundary.width, map_boundary.height, map_bg);
@@ -24,10 +24,10 @@ struct Player {
     Vector2 direction = {0.f, 1.f};
     float speed = 0.1f;
     float rotation_speed = PI / (fps * 2.f);
-    float near_plane = 0.01f;
+    float near_plane = 0.5f;
     float far_plane = num_cols;
-    void change_dir(float angle) {
-	direction = Vector2Normalize(Vector2Rotate(direction, angle * rotation_speed));
+    void change_dir(int sign) {
+	direction = Vector2Normalize(Vector2Rotate(direction, sign * rotation_speed));
     }
     Color color = RED;
     float size = 0.1f;
@@ -74,9 +74,6 @@ float snap(float n, float dn) {
 }
 
 Vector2 next_point(Vector2 p, Vector2 dir) {
-    if (std::abs(dir.x) < 0.0001f) {
-//	dir.x = 0.f;	
-    }
     Vector2 p_next = {0,0};
     Vector2 p2 = Vector2Add(p, dir);
     //y1 = mx1 + c
@@ -172,23 +169,27 @@ void draw_walls() {
     for(u64 x = 0; x < window_size.x; ++x) {
 	cell = player.position;
 	Color c = {0xAA, 0x18, 0x18, 0xFF};
-	for (u64 depth = 0; depth < player.far_plane * 2; ++depth) {
+	for (u64 depth = 0; depth < player.far_plane; ++depth) {
 	    cell = Vector2Add(cell, Vector2Scale(Vector2Normalize(Vector2Subtract(cell, prev)), EPSILON));
 	    u64 lx = std::floor(cell.x);
 	    u64 ly = std::floor(cell.y);
 	    float distance = Vector2Length(Vector2Subtract(cell, player.position));
+	    float scale = (player.far_plane - distance) / player.far_plane; 
+	    // distance = 0 => s = 1
+	    // distance = player.far_plane => s = 0
 	    c = ColorBrightness(c, player.far_plane / distance);
 	    prev = cell;	
 	    cell = next_point(cell, Vector2Scale(direction, player.near_plane));
 	    if(lx < num_cols && ly < num_rows && level[index(lx, ly)]) {
-		DrawRectangleRec(squish_rec({(float)x, 0, 3, window_size.y}, 0.5f / distance), GRAY);
-		break;
+		DrawRectangleRec(squish_rec({(float)x, 0, 2, window_size.y}, scale), GRAY);
 	    }
 	    if (x == (u64)window_size.x / 2){
 		DrawLineV(to_map(prev), to_map(cell), BLUE); 
 		DrawCircleV(to_map(prev), 3, RED);
 		Vector2 v = to_map({float(lx), float(ly)});
 		DrawRectangleLines(v.x, v.y, to_screen.x / map_factor, to_screen.y / map_factor, RED);
+		Vector2 camera_plane = Vector2Add(player.position, left_to_right);
+		DrawLineV(to_map(player.position), to_map(Vector2Add(camera_plane, Vector2Scale(left_to_right, 100))), GREEN);
 	    }
 	}
 	left = Vector2Add(left, left_to_right);
@@ -199,7 +200,6 @@ void draw_walls() {
 int main() {
     InitWindow(window_size.x, window_size.y, window_title);
     SetTargetFPS(fps);
-    player.change_dir(3.14f);
     map_txt = LoadTextureFromImage(map_img);
     while(!WindowShouldClose()) {
 	BeginDrawing();
