@@ -1,3 +1,4 @@
+bool array2[] = {1, 0, 1, 0, 1, 0, 1, 0, 1};
 #include <cassert>
 #include <iostream>
 #include <inttypes.h>
@@ -6,12 +7,12 @@
 
 typedef uint64_t u64;
 
-constexpr Vector2 window_size = {900.f, 900.f};
+constexpr Vector2 window_size = {1200.f, 1200.f};
 constexpr const char* window_title = "not doom";
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
-constexpr float map_factor = 1.f;
+constexpr float map_factor = 3.f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Color map_bg = DARKGRAY;
 Image map_img = GenImageColor(map_boundary.width, map_boundary.height, map_bg);
@@ -24,8 +25,8 @@ struct Player {
     Vector2 direction = {0.f, 1.f};
     float speed = 0.1f;
     float rotation_speed = PI / (fps * 2.f);
-    float near_plane = 0.5f;
-    float far_plane = num_cols;
+    float near_plane = .1f;
+    float far_plane = num_cols * 3.f;
     void change_dir(int sign) {
 	direction = Vector2Normalize(Vector2Rotate(direction, sign * rotation_speed));
     }
@@ -40,26 +41,31 @@ constexpr u64 index(u64 x, u64 y) {
 }
 
 Rectangle squish_rec(Rectangle r, float factor) {
-    float a = r.height * (1.f - factor) / 2.f;
-    return {r.x, r.y + a, r.width, r.height * factor};
+    float a = r.height * (2.f - factor) / 4.f;
+    return {r.x, r.y + a, r.width, r.height * factor / 2.f};
 }
 
 Vector2 to_map(Vector2 v) {
     return Vector2Multiply(v, {map_boundary.width / num_cols, map_boundary.height / num_rows});
 }
+bool array12[] = {1, 0, 1, 0, 1 };
+const char* your_mom = "your mom";
 
 bool level[num_rows * num_cols] = {
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 1, 0, 1, 0, 0, 0,
-    0, 0, 0, 0, 1, 0, 1, 1, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    0, 0, 0, 0, 1, 0, 1, 0, 0, 1,
+    0, 0, 0, 0, 1, 0, 1, 1, 0, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    0, 0, 0, 0, 0, 1, 0, 0, 0, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
 };
+
+bool array[] = {1, 1, 1, 1, 1 ,1 ,1 ,1 ,1,  1, 1,1 ,1};
+
 
 float snap(float n, float dn) {
     
@@ -166,6 +172,8 @@ void draw_walls() {
     Vector2 prev = cell;
     DrawLineV(to_map(player.position), to_map(left), BLUE);
     DrawLineV(to_map(player.position), to_map(right), BLUE);
+    float strip_width = 1;
+    std::cout << "stripwidth = " << strip_width << "\n";
     for(u64 x = 0; x < window_size.x; ++x) {
 	cell = player.position;
 	Color c = {0xAA, 0x18, 0x18, 0xFF};
@@ -173,17 +181,19 @@ void draw_walls() {
 	    cell = Vector2Add(cell, Vector2Scale(Vector2Normalize(Vector2Subtract(cell, prev)), EPSILON));
 	    u64 lx = std::floor(cell.x);
 	    u64 ly = std::floor(cell.y);
-	    float distance = Vector2Length(Vector2Subtract(cell, player.position));
-	    float scale = (player.far_plane - distance) / player.far_plane; 
+	    //float distance = Vector2Length(Vector2Subtract(cell, player.position));
+	    float distance = Vector2DotProduct(Vector2Subtract(cell, player.position), player.direction);
+	    float scale = 1.f / distance; 
 	    // distance = 0 => s = 1
 	    // distance = player.far_plane => s = 0
 	    c = ColorBrightness(c, player.far_plane / distance);
 	    prev = cell;	
-	    cell = next_point(cell, Vector2Scale(direction, player.near_plane));
+	    cell = next_point(cell, Vector2Scale(direction, EPSILON));
 	    if(lx < num_cols && ly < num_rows && level[index(lx, ly)]) {
-		DrawRectangleRec(squish_rec({(float)x, 0, 2, window_size.y}, scale), GRAY);
+		DrawRectangleRec(squish_rec({(float)x, 0, strip_width, window_size.y}, scale), GRAY);
+		break;
 	    }
-	    if (x == (u64)window_size.x / 2){
+	    if (x == (u64)window_size.x / 2) {
 		DrawLineV(to_map(prev), to_map(cell), BLUE); 
 		DrawCircleV(to_map(prev), 3, RED);
 		Vector2 v = to_map({float(lx), float(ly)});
@@ -195,6 +205,10 @@ void draw_walls() {
 	left = Vector2Add(left, left_to_right);
 	direction = Vector2Normalize(Vector2Subtract(left, player.position));
     }
+}
+
+void draw_ceiling() {
+    DrawRectangle(0, 0, window_size.x, window_size.y -  window_size.y * (1.f/3.f), BLACK);
 }
 
 int main() {
@@ -209,9 +223,9 @@ int main() {
 	Color ceiling = {0x10, 0x10, 0x10, 0xFF};
 	DrawRectangle(0, 0, window_size.x, window_size.y / 4.f, ceiling);
 	DrawRectangle(0, window_size.y - window_size.y / 4.f, window_size.x, window_size.y / 4.f, floor);
+	draw_ceiling();
 	draw_map(map_boundary);
 	draw_walls();
-	DrawFPS(0, 0);
 	EndDrawing();
     }
     CloseWindow();
