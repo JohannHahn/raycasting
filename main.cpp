@@ -6,6 +6,7 @@ bool array2[] = {1, 0, 1, 0, 1, 0, 1, 0, 1};
 #include "raylib/src/raymath.h"
 
 typedef uint64_t u64;
+typedef uint32_t u32;
 
 constexpr Vector2 window_size = {1200.f, 1200.f};
 constexpr const char* window_title = "not doom";
@@ -14,10 +15,17 @@ constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
 constexpr float map_factor = 3.f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
+Color bg_color = BLACK;
 Color map_bg = DARKGRAY;
 Image map_img = GenImageColor(map_boundary.width, map_boundary.height, map_bg);
 Texture map_txt;
+Image game_img = GenImageColor(window_size.x, window_size.y, bg_color);
+Texture game_tex;
 Vector2 to_screen = {window_size. x / num_cols, window_size.y / num_rows};
+const char* wall_tex_path = "tileable10d.png";
+Image stone_wall_img = LoadImage(wall_tex_path);
+Texture stone_wall_tex;
+
 
 
 struct Player {
@@ -41,8 +49,8 @@ constexpr u64 index(u64 x, u64 y) {
 }
 
 Rectangle squish_rec(Rectangle r, float factor) {
-    float a = r.height * (2.f - factor) / 4.f;
-    return {r.x, r.y + a, r.width, r.height * factor / 2.f};
+    float a = r.height * (1.f - factor) / 2.f;
+    return {r.x, r.y + a, r.width, r.height * factor};
 }
 
 Vector2 to_map(Vector2 v) {
@@ -126,7 +134,7 @@ void draw_map(Rectangle boundary) {
 	}
     }
     Vector2 player_map = Vector2Multiply(player.position, size);
-    Vector2 p2_map = Vector2Multiply(Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane)), size);
+    Vector2 p2_map = Vector2Multiply(Vector2Add(player.position, Vector2Scale(player.direction, num_cols / 2.f)), size);
     ImageDrawCircleV(&map_img, player_map, player.size * size.x, player.color);
     ImageDrawLineV(&map_img, player_map, p2_map, player.color);
     ImageDrawCircleV(&map_img, p2_map, player.size * size.x / 2.f, player.color);
@@ -161,6 +169,21 @@ void controls() {
     } 
 }
 
+void draw_strip(u64 x, float scale, Color c) {
+    scale = Clamp(scale, 0.f, 1.f);
+    Rectangle strip = squish_rec({(float)x, 0, 1.f, window_size.y - 1}, scale);
+    u64 u = x / window_size.x * stone_wall_img.width;
+    assert(u < stone_wall_img.width && "!");
+    for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
+	u64 v = y/ window_size.y * stone_wall_img.height;
+	if (v < stone_wall_img.height) {
+	    u32 pixel_col = ((u32*)stone_wall_img.data)[u + v * stone_wall_img.width];
+	    Color* col = (Color*)(&pixel_col);
+	    ImageDrawPixel(&game_img, x, y, *col);
+	}
+    }
+    //ImageDrawRectangleRec(&game_img, strip, c);
+}
 
 void draw_walls() {
     Vector2 cell = player.position;
@@ -173,10 +196,9 @@ void draw_walls() {
     DrawLineV(to_map(player.position), to_map(left), BLUE);
     DrawLineV(to_map(player.position), to_map(right), BLUE);
     float strip_width = 1;
-    std::cout << "stripwidth = " << strip_width << "\n";
     for(u64 x = 0; x < window_size.x; ++x) {
 	cell = player.position;
-	Color c = {0xAA, 0x18, 0x18, 0xFF};
+	Color c = RED;
 	for (u64 depth = 0; depth < player.far_plane; ++depth) {
 	    cell = Vector2Add(cell, Vector2Scale(Vector2Normalize(Vector2Subtract(cell, prev)), EPSILON));
 	    u64 lx = std::floor(cell.x);
@@ -184,13 +206,11 @@ void draw_walls() {
 	    //float distance = Vector2Length(Vector2Subtract(cell, player.position));
 	    float distance = Vector2DotProduct(Vector2Subtract(cell, player.position), player.direction);
 	    float scale = 1.f / distance; 
-	    // distance = 0 => s = 1
-	    // distance = player.far_plane => s = 0
-	    c = ColorBrightness(c, player.far_plane / distance);
+	    c = ColorBrightness(RED, scale / 5.f);
 	    prev = cell;	
 	    cell = next_point(cell, Vector2Scale(direction, EPSILON));
 	    if(lx < num_cols && ly < num_rows && level[index(lx, ly)]) {
-		DrawRectangleRec(squish_rec({(float)x, 0, strip_width, window_size.y}, scale), GRAY);
+		draw_strip(x, scale, c);
 		break;
 	    }
 	    if (x == (u64)window_size.x / 2) {
@@ -208,24 +228,27 @@ void draw_walls() {
 }
 
 void draw_ceiling() {
-    DrawRectangle(0, 0, window_size.x, window_size.y -  window_size.y * (1.f/3.f), BLACK);
+    ImageDrawRectangle(&game_img, 0, 0, window_size.x, window_size.y -  window_size.y * (1.f/3.f), BLACK);
 }
+
 
 int main() {
     InitWindow(window_size.x, window_size.y, window_title);
     SetTargetFPS(fps);
     map_txt = LoadTextureFromImage(map_img);
+    ImageFormat(&stone_wall_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    stone_wall_tex = LoadTextureFromImage(stone_wall_img);
+    game_tex = LoadTextureFromImage(game_img);
     while(!WindowShouldClose()) {
 	BeginDrawing();
-	ClearBackground(BLACK);
+	//ClearBackground(bg_color);
+	ImageClearBackground(&game_img, bg_color);
 	controls();
-	Color floor = {0x18, 0x18, 0x18, 0xFF};
-	Color ceiling = {0x10, 0x10, 0x10, 0xFF};
-	DrawRectangle(0, 0, window_size.x, window_size.y / 4.f, ceiling);
-	DrawRectangle(0, window_size.y - window_size.y / 4.f, window_size.x, window_size.y / 4.f, floor);
-	draw_ceiling();
-	draw_map(map_boundary);
+	//draw_ceiling();
 	draw_walls();
+	UpdateTexture(game_tex, game_img.data); 
+	DrawTexture(game_tex, 0, 0, WHITE);
+	draw_map(map_boundary);
 	EndDrawing();
     }
     CloseWindow();
