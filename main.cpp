@@ -8,11 +8,11 @@ bool array2[] = {1, 0, 1, 0, 1, 0, 1, 0, 1};
 typedef uint64_t u64;
 typedef uint32_t u32;
 
-constexpr Vector2 window_size = {1200.f, 1200.f};
+constexpr Vector2 window_size = {1200.f, 900.f};
 constexpr const char* window_title = "not doom";
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
-constexpr float fps = 60.f;
+constexpr float fps = 660.f;
 constexpr float map_factor = 3.f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Color bg_color = BLACK;
@@ -32,11 +32,11 @@ struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
     Vector2 direction = {0.f, 1.f};
     float speed = 0.1f;
-    float rotation_speed = PI / (fps * 2.f);
-    float near_plane = .1f;
+    float rotation_speed = PI;
+    float near_plane = .05f;
     float far_plane = num_cols * 3.f;
     void change_dir(int sign) {
-	direction = Vector2Normalize(Vector2Rotate(direction, sign * rotation_speed));
+	direction = Vector2Normalize(Vector2Rotate(direction, sign * rotation_speed * GetFrameTime()));
     }
     Color color = RED;
     float size = 0.1f;
@@ -169,18 +169,18 @@ void controls() {
     } 
 }
 
-void draw_strip(u64 x, float scale, Color c) {
+void draw_strip(u64 x, u64 u, float scale, Color c) {
     scale = Clamp(scale, 0.f, 1.f);
     Rectangle strip = squish_rec({(float)x, 0, 1.f, window_size.y - 1}, scale);
-    u64 u = x / window_size.x * stone_wall_img.width;
     assert(u < stone_wall_img.width && "!");
+    float v = 0.f;
     for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
-	u64 v = y/ window_size.y * stone_wall_img.height;
 	if (v < stone_wall_img.height) {
-	    u32 pixel_col = ((u32*)stone_wall_img.data)[u + v * stone_wall_img.width];
+	    u32 pixel_col = ((u32*)stone_wall_img.data)[u + (u64)v * stone_wall_img.width];
 	    Color* col = (Color*)(&pixel_col);
 	    ImageDrawPixel(&game_img, x, y, *col);
 	}
+	v += 1.f / strip.height * stone_wall_img.height;
     }
     //ImageDrawRectangleRec(&game_img, strip, c);
 }
@@ -199,18 +199,21 @@ void draw_walls() {
     for(u64 x = 0; x < window_size.x; ++x) {
 	cell = player.position;
 	Color c = RED;
-	for (u64 depth = 0; depth < player.far_plane; ++depth) {
+	float distance = 0.f;
+	while(distance < player.far_plane) {
+	//for (u64 depth = 0; depth < player.far_plane; ++depth) {
 	    cell = Vector2Add(cell, Vector2Scale(Vector2Normalize(Vector2Subtract(cell, prev)), EPSILON));
 	    u64 lx = std::floor(cell.x);
 	    u64 ly = std::floor(cell.y);
 	    //float distance = Vector2Length(Vector2Subtract(cell, player.position));
-	    float distance = Vector2DotProduct(Vector2Subtract(cell, player.position), player.direction);
+	    distance = Vector2DotProduct(Vector2Subtract(cell, player.position), player.direction);
 	    float scale = 1.f / distance; 
 	    c = ColorBrightness(RED, scale / 5.f);
 	    prev = cell;	
 	    cell = next_point(cell, Vector2Scale(direction, EPSILON));
 	    if(lx < num_cols && ly < num_rows && level[index(lx, ly)]) {
-		draw_strip(x, scale, c);
+		u64 u = (std::abs(prev.x) - std::abs(std::floor(prev.x))) * stone_wall_img.width;
+		draw_strip(x, u, scale, c);
 		break;
 	    }
 	    if (x == (u64)window_size.x / 2) {
@@ -245,10 +248,10 @@ int main() {
 	ImageClearBackground(&game_img, bg_color);
 	controls();
 	//draw_ceiling();
+	draw_map(map_boundary);
 	draw_walls();
 	UpdateTexture(game_tex, game_img.data); 
 	DrawTexture(game_tex, 0, 0, WHITE);
-	draw_map(map_boundary);
 	EndDrawing();
     }
     CloseWindow();
