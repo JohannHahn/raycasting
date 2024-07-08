@@ -34,7 +34,7 @@ struct Player {
     float speed = 0.1f;
     float rotation_speed = PI;
     float near_plane = .05f;
-    float far_plane = num_cols * 3.f;
+    float far_plane = num_cols;
     void change_dir(int sign) {
 	direction = Vector2Normalize(Vector2Rotate(direction, sign * rotation_speed * GetFrameTime()));
     }
@@ -49,8 +49,9 @@ constexpr u64 index(u64 x, u64 y) {
 }
 
 Rectangle squish_rec(Rectangle r, float factor) {
-    float a = r.height * (1.f - factor) / 2.f;
-    return {r.x, r.y + a, r.width, r.height * factor};
+    float h = r.height * factor;
+    float y = (r.height - h) * 0.5f;
+    return {r.x, y, r.width, h};
 }
 
 Vector2 to_map(Vector2 v) {
