@@ -34,8 +34,10 @@ struct Player {
     float speed = 0.1f;
     float rotation_speed = PI;
     float near_plane = .05f;
-    float far_plane = num_cols;
+    float far_plane = num_cols * 2;
     void change_dir(int sign) {
+	if (sign < 0) sign = -1;
+	if (sign > 0) sign = 1;
 	direction = Vector2Normalize(Vector2Rotate(direction, sign * rotation_speed * GetFrameTime()));
     }
     Color color = RED;
@@ -57,15 +59,13 @@ Rectangle squish_rec(Rectangle r, float factor) {
 Vector2 to_map(Vector2 v) {
     return Vector2Multiply(v, {map_boundary.width / num_cols, map_boundary.height / num_rows});
 }
-bool array12[] = {1, 0, 1, 0, 1 };
-const char* your_mom = "your mom";
 
 bool level[num_rows * num_cols] = {
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     0, 0, 0, 0, 1, 0, 1, 0, 0, 1,
     0, 0, 0, 0, 1, 0, 1, 1, 0, 1,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    0, 1, 0, 0, 0, 0, 0, 0, 0, 1,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
@@ -141,8 +141,6 @@ void draw_map(Rectangle boundary) {
     ImageDrawCircleV(&map_img, p2_map, player.size * size.x / 2.f, player.color);
 
 
-    UpdateTexture(map_txt, map_img.data); 
-    DrawTexturePro(map_txt, map_boundary, map_boundary, {0.f, 0.f}, 0.f, WHITE);
 }
 void controls() {
     float dt = GetFrameTime();
@@ -201,19 +199,24 @@ void draw_walls() {
 	cell = player.position;
 	Color c = RED;
 	float distance = 0.f;
-	while(distance < player.far_plane) {
+	while(distance <= player.far_plane) {
 	//for (u64 depth = 0; depth < player.far_plane; ++depth) {
 	    cell = Vector2Add(cell, Vector2Scale(Vector2Normalize(Vector2Subtract(cell, prev)), EPSILON));
 	    u64 lx = std::floor(cell.x);
 	    u64 ly = std::floor(cell.y);
 	    //float distance = Vector2Length(Vector2Subtract(cell, player.position));
-	    distance = Vector2DotProduct(Vector2Subtract(cell, player.position), player.direction);
+	    distance = Vector2DotProduct(Vector2Subtract(cell, player.position), player.direction) * 2.f;
 	    float scale = 1.f / distance; 
 	    c = ColorBrightness(RED, scale / 5.f);
 	    prev = cell;	
 	    cell = next_point(cell, Vector2Scale(direction, EPSILON));
-	    if(lx < num_cols && ly < num_rows && level[index(lx, ly)]) {
-		u64 u = (std::abs(prev.x) - std::abs(std::floor(prev.x))) * stone_wall_img.width;
+	    if(distance >= player.near_plane && lx < num_cols && ly < num_rows && level[index(lx, ly)]) {
+		Vector2 t = Vector2Subtract(prev, {(float)lx, (float)ly});
+		u64 u = 0;
+		if (std::abs(t.x - 1.f) < EPSILON || std::abs(t.x) < EPSILON) {
+		    u = t.y * stone_wall_img.width;
+		}
+		else u = t.x * stone_wall_img.width;
 		draw_strip(x, u, scale, c);
 		break;
 	    }
@@ -252,7 +255,9 @@ int main() {
 	draw_map(map_boundary);
 	draw_walls();
 	UpdateTexture(game_tex, game_img.data); 
+	UpdateTexture(map_txt, map_img.data); 
 	DrawTexture(game_tex, 0, 0, WHITE);
+	DrawTexturePro(map_txt, map_boundary, map_boundary, {0.f, 0.f}, 0.f, WHITE);
 	EndDrawing();
     }
     CloseWindow();
