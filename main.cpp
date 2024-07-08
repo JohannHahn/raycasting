@@ -8,8 +8,7 @@ bool array2[] = {1, 0, 1, 0, 1, 0, 1, 0, 1};
 typedef uint64_t u64;
 typedef uint32_t u32;
 
-constexpr Vector2 window_size = {1200.f, 900.f};
-constexpr const char* window_title = "not doom";
+constexpr Vector2 window_size = {900.f, 900.f}; constexpr const char* window_title = "not doom";
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
 constexpr float fps = 660.f;
@@ -31,9 +30,9 @@ Texture stone_wall_tex;
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
     Vector2 direction = {0.f, 1.f};
-    float speed = 0.1f;
+    float speed = 2.f;
     float rotation_speed = PI;
-    float near_plane = .05f;
+    float near_plane = .4f;
     float far_plane = num_cols * 2;
     void change_dir(int sign) {
 	if (sign < 0) sign = -1;
@@ -41,7 +40,7 @@ struct Player {
 	direction = Vector2Normalize(Vector2Rotate(direction, sign * rotation_speed * GetFrameTime()));
     }
     Color color = RED;
-    float size = 0.1f;
+    float size = near_plane + EPSILON;
 };
 Player player;
 
@@ -122,15 +121,15 @@ void draw_map(Rectangle boundary) {
     ImageClearBackground(&map_img, map_bg);
     Vector2 size = {boundary.width / num_cols, boundary.height / num_rows};
     for (u64 x = 0; x < num_cols; ++x) {
-	ImageDrawLine(&map_img, x * size.x, 0, x*size.x, num_rows * size.y, RAYWHITE);
+	ImageDrawLine(&map_img, x * size.x, 0, x*size.x, num_rows * size.y, ColorAlpha(RAYWHITE, 0.5f));
     }
     for (u64 y = 0; y < num_rows; ++y) {
-	ImageDrawLine(&map_img, 0, y * size.y, num_cols * size.x, y * size.y, RAYWHITE);
+	ImageDrawLine(&map_img, 0, y * size.y, num_cols * size.x, y * size.y, ColorAlpha(RAYWHITE, 0.5f));
     }
     for(u64 y = 0; y < num_rows; ++y) {
 	for(u64 x = 0; x < num_cols; ++x) {
 	    if(level[index(x, y)]) {
-		ImageDrawRectangleV(&map_img, {x * size.x, y * size.y}, size, WHITE);
+		ImageDrawRectangleV(&map_img, {x * size.x, y * size.y}, size, ColorAlpha(WHITE, 0.5f));
 	    }
 	}
     }
@@ -142,23 +141,29 @@ void draw_map(Rectangle boundary) {
 
 
 }
+
+bool inside_wall(Vector2 p) {
+    return level[index(p.x, p.y)];
+}
+
 void controls() {
     float dt = GetFrameTime();
+    Vector2 new_pos = player.position;
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
-	//player.position.y += player.speed * dt;
-	player.position = Vector2Subtract(player.position, Vector2Scale(player.direction, player.speed));
+	new_pos = Vector2Subtract(player.position, Vector2Scale(player.direction, player.speed * dt));
+	if (!inside_wall(new_pos)) player.position = new_pos;
     } 
     if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
-	//player.position.y -= player.speed * dt;
-	player.position = Vector2Add(player.position, Vector2Scale(player.direction, player.speed));
+	new_pos = Vector2Add(player.position, Vector2Scale(player.direction, player.speed * dt));
+	if (!inside_wall(new_pos)) player.position = new_pos;
     } 
     if (IsKeyDown(KEY_A)) {
-	//player.position.y -= player.speed * dt;
-	player.position = Vector2Add(player.position, Vector2Scale(Vector2Rotate(player.direction, -PI/2.f), player.speed));
+	new_pos = Vector2Add(player.position, Vector2Scale(Vector2Rotate(player.direction, -PI/2.f), player.speed * dt));
+	if (!inside_wall(new_pos)) player.position = new_pos;
     } 
     if (IsKeyDown(KEY_D)) {
-	//player.position.y -= player.speed * dt;
-	player.position = Vector2Add(player.position, Vector2Scale(Vector2Rotate(player.direction, PI/2.f), player.speed));
+	new_pos = Vector2Add(player.position, Vector2Scale(Vector2Rotate(player.direction, PI/2.f), player.speed * dt));
+	if (!inside_wall(new_pos)) player.position = new_pos;
     } 
     if (IsKeyDown(KEY_LEFT)) {
 	player.change_dir(-1);
@@ -171,7 +176,7 @@ void controls() {
 void draw_strip(u64 x, u64 u, float scale, Color c) {
     scale = Clamp(scale, 0.f, 1.f);
     Rectangle strip = squish_rec({(float)x, 0, 1.f, window_size.y - 1}, scale);
-    assert(u < stone_wall_img.width && "!");
+    if (u > stone_wall_img.width && "!") return;
     float v = 0.f;
     for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
 	if (v < stone_wall_img.height) {
@@ -210,7 +215,13 @@ void draw_walls() {
 	    c = ColorBrightness(RED, scale / 5.f);
 	    prev = cell;	
 	    cell = next_point(cell, Vector2Scale(direction, EPSILON));
-	    if(distance >= player.near_plane && lx < num_cols && ly < num_rows && level[index(lx, ly)]) {
+		ImageDrawLineV(&map_img, to_map(prev), to_map(cell), BLUE); 
+		ImageDrawCircleV(&map_img, to_map(prev), 3, RED);
+		Vector2 v = to_map({float(lx), float(ly)});
+		ImageDrawRectangleLines(&map_img, {v.x, v.y, to_screen.x / map_factor, to_screen.y / map_factor}, 1, RED);
+		Vector2 camera_plane = Vector2Add(player.position, left_to_right);
+		ImageDrawLineV(&map_img, to_map(player.position), to_map(Vector2Add(camera_plane, Vector2Scale(left_to_right, 100))), GREEN);
+	    if(distance >= player.near_plane && lx <= num_cols && ly <= num_rows && level[index(lx, ly)]) {
 		Vector2 t = Vector2Subtract(prev, {(float)lx, (float)ly});
 		u64 u = 0;
 		if (std::abs(t.x - 1.f) < EPSILON || std::abs(t.x) < EPSILON) {
@@ -219,14 +230,6 @@ void draw_walls() {
 		else u = t.x * stone_wall_img.width;
 		draw_strip(x, u, scale, c);
 		break;
-	    }
-	    if (x == (u64)window_size.x / 2) {
-		DrawLineV(to_map(prev), to_map(cell), BLUE); 
-		DrawCircleV(to_map(prev), 3, RED);
-		Vector2 v = to_map({float(lx), float(ly)});
-		DrawRectangleLines(v.x, v.y, to_screen.x / map_factor, to_screen.y / map_factor, RED);
-		Vector2 camera_plane = Vector2Add(player.position, left_to_right);
-		DrawLineV(to_map(player.position), to_map(Vector2Add(camera_plane, Vector2Scale(left_to_right, 100))), GREEN);
 	    }
 	}
 	left = Vector2Add(left, left_to_right);
