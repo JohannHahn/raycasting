@@ -12,7 +12,7 @@ constexpr Vector2 window_size = {900.f, 900.f}; constexpr const char* window_tit
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
 constexpr float fps = 660.f;
-constexpr float map_factor = 3.f;
+constexpr float map_factor = 2.f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Color bg_color = BLACK;
 Color map_bg = DARKGRAY;
@@ -22,9 +22,16 @@ Image game_img = GenImageColor(window_size.x, window_size.y, bg_color);
 Texture game_tex;
 Vector2 to_screen = {window_size. x / num_cols, window_size.y / num_rows};
 const char* wall_tex_path = "tileable10d.png";
+const char* johannder_path = "johannder.png";
 Image stone_wall_img = LoadImage(wall_tex_path);
+Image johannder_img = LoadImage(johannder_path);
 Texture stone_wall_tex;
+Texture johannder_tex;
+Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
 
+enum wall_tex {
+    EMPTY, FLAT, STONE_WALL, JOHANNDER,
+};
 
 
 struct Player {
@@ -59,21 +66,18 @@ Vector2 to_map(Vector2 v) {
     return Vector2Multiply(v, {map_boundary.width / num_cols, map_boundary.height / num_rows});
 }
 
-bool level[num_rows * num_cols] = {
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-    0, 0, 0, 0, 1, 0, 1, 0, 0, 1,
-    0, 0, 0, 0, 1, 0, 1, 1, 0, 1,
-    0, 1, 0, 0, 0, 0, 0, 0, 0, 1,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-    0, 0, 0, 0, 0, 1, 0, 0, 0, 1,
-    1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+wall_tex level[num_rows * num_cols] = {
+    FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
+    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    EMPTY, EMPTY, JOHANNDER, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    EMPTY, STONE_WALL, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
 };
-
-bool array[] = {1, 1, 1, 1, 1 ,1 ,1 ,1 ,1,  1, 1,1 ,1};
-
 
 float snap(float n, float dn) {
     
@@ -173,20 +177,25 @@ void controls() {
     } 
 }
 
-void draw_strip(u64 x, u64 u, float scale, Color c) {
+void draw_strip_flat(u64 x, float scale, Color c) {
     scale = Clamp(scale, 0.f, 1.f);
     Rectangle strip = squish_rec({(float)x, 0, 1.f, window_size.y - 1}, scale);
-    if (u > stone_wall_img.width && "!") return;
+    ImageDrawRectangleRec(&game_img, strip, c);
+}
+
+void draw_strip(u64 x, u64 u, float scale, Image img) {
+    scale = Clamp(scale, 0.f, 1.f);
+    Rectangle strip = squish_rec({(float)x, 0, 1.f, window_size.y - 1}, scale);
+    if (u > img.width && "!") return;
     float v = 0.f;
     for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
-	if (v < stone_wall_img.height) {
-	    u32 pixel_col = ((u32*)stone_wall_img.data)[u + (u64)v * stone_wall_img.width];
+	if (v < img.height) {
+	    u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
 	    Color* col = (Color*)(&pixel_col);
-	    ImageDrawPixel(&game_img, x, y, *col);
+	    ImageDrawPixel(&game_img, x, y, ColorBrightness(*col, scale / 4.f));
 	}
-	v += 1.f / strip.height * stone_wall_img.height;
+	v += 1.f / strip.height * img.height;
     }
-    //ImageDrawRectangleRec(&game_img, strip, c);
 }
 
 void draw_walls() {
@@ -212,24 +221,36 @@ void draw_walls() {
 	    //float distance = Vector2Length(Vector2Subtract(cell, player.position));
 	    distance = Vector2DotProduct(Vector2Subtract(cell, player.position), player.direction) * 2.f;
 	    float scale = 1.f / distance; 
-	    c = ColorBrightness(RED, scale / 5.f);
+	    float color_scale = 1.f / Vector2Length(Vector2Subtract(light_pos, cell));
+	    c = ColorBrightness(RED, color_scale);
 	    prev = cell;	
 	    cell = next_point(cell, Vector2Scale(direction, EPSILON));
-		ImageDrawLineV(&map_img, to_map(prev), to_map(cell), BLUE); 
-		ImageDrawCircleV(&map_img, to_map(prev), 3, RED);
-		Vector2 v = to_map({float(lx), float(ly)});
-		ImageDrawRectangleLines(&map_img, {v.x, v.y, to_screen.x / map_factor, to_screen.y / map_factor}, 1, RED);
-		Vector2 camera_plane = Vector2Add(player.position, left_to_right);
-		ImageDrawLineV(&map_img, to_map(player.position), to_map(Vector2Add(camera_plane, Vector2Scale(left_to_right, 100))), GREEN);
-	    if(distance >= player.near_plane && lx <= num_cols && ly <= num_rows && level[index(lx, ly)]) {
-		Vector2 t = Vector2Subtract(prev, {(float)lx, (float)ly});
-		u64 u = 0;
-		if (std::abs(t.x - 1.f) < EPSILON || std::abs(t.x) < EPSILON) {
-		    u = t.y * stone_wall_img.width;
+	    //debug
+	    
+	    if (lx < num_cols && ly < num_rows) {
+		wall_tex cell_type = level[index(lx, ly)];
+		if(cell_type) {
+		    ImageDrawLineV(&map_img, to_map(prev), to_map(cell), BLUE); 
+		    ImageDrawCircleV(&map_img, to_map(prev), 3, RED);
+		    Vector2 v = to_map({float(lx), float(ly)});
+		    ImageDrawRectangleLines(&map_img, {v.x, v.y, to_screen.x / map_factor, to_screen.y / map_factor}, 1, RED);
+		    Vector2 camera_plane = Vector2Add(player.position, left_to_right);
+		    ImageDrawLineV(&map_img, to_map(player.position), to_map(Vector2Add(camera_plane, Vector2Scale(left_to_right, 100))), GREEN);
+
+		    if (cell_type == FLAT) {
+			draw_strip_flat(x, scale, c);
+			break;
+		    }
+		    Image img = cell_type == STONE_WALL ? stone_wall_img : johannder_img; 
+		    Vector2 t = Vector2Subtract(prev, {(float)lx, (float)ly});
+		    u64 u = 0;
+		    if (std::abs(t.x - 1.f) < EPSILON || std::abs(t.x) < EPSILON) {
+			u = (1.f - t.y) * img.width;
+		    }
+		    else u = t.x * img.width;
+		    draw_strip(x, u, scale, img);
+		    break;
 		}
-		else u = t.x * stone_wall_img.width;
-		draw_strip(x, u, scale, c);
-		break;
 	    }
 	}
 	left = Vector2Add(left, left_to_right);
@@ -247,8 +268,10 @@ int main() {
     SetTargetFPS(fps);
     map_txt = LoadTextureFromImage(map_img);
     ImageFormat(&stone_wall_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    ImageFormat(&johannder_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
     stone_wall_tex = LoadTextureFromImage(stone_wall_img);
     game_tex = LoadTextureFromImage(game_img);
+    johannder_tex = LoadTextureFromImage(johannder_img);
     while(!WindowShouldClose()) {
 	BeginDrawing();
 	//ClearBackground(bg_color);
