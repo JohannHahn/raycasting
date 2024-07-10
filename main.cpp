@@ -1,4 +1,3 @@
-bool array2[] = {1, 0, 1, 0, 1, 0, 1, 0, 1};
 #include <cassert>
 #include <iostream>
 #include <inttypes.h>
@@ -12,7 +11,7 @@ constexpr Vector2 window_size = {900.f, 900.f}; constexpr const char* window_tit
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
-constexpr float map_factor = 2.f;
+constexpr float map_factor = 1.f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Color bg_color = BLACK;
 Color map_bg = DARKGRAY;
@@ -33,13 +32,19 @@ enum wall_tex {
     EMPTY, FLAT, STONE_WALL, JOHANNDER,
 };
 
+struct Point{
+    u64 x;
+    u64 y;
+};
+
+Color colors[] = {BLACK, RED, GREEN, BLUE};
 
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
     Vector2 direction = {0.f, 1.f};
     float speed = 2.f;
     float rotation_speed = PI;
-    float near_plane = 0.01f;
+    float near_plane = 1.f;
     float far_plane = num_cols * 2;
     void change_dir(int sign) {
 	if (sign < 0) sign = -1;
@@ -74,14 +79,14 @@ Vector2 to_map(Vector2 v) {
 
 wall_tex level[num_rows * num_cols] = {
     FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    EMPTY, EMPTY, JOHANNDER, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    EMPTY, STONE_WALL, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, JOHANNDER, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, STONE_WALL, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
     FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
 };
 
@@ -97,7 +102,11 @@ float snap(float n, float dn) {
     return n;
 }
 
-Vector2 next_point(Vector2 p, Vector2 p2) {
+Point grid_coords(Vector2 v) {
+    return {(u64)v.x, (u64)v.y};
+}
+
+Vector2 next_point(Vector2 p, Vector2 p2, int& out) {
     Vector2 p_next = {0,0};
     Vector2 dir = Vector2Subtract(p2, p);
     //y1 = mx1 + c
@@ -117,15 +126,19 @@ Vector2 next_point(Vector2 p, Vector2 p2) {
 	    float first_distance = Vector2Length(Vector2Subtract(p_next, p2));
 	    float second_distance = Vector2Length(Vector2Subtract(second_candidate, p2));
 	    if (second_distance < first_distance) {
+		out = 2;
 		return second_candidate;
 	    }
 	}
+	out = 1;
 	return p_next;
     }
     p_next.x = p2.x;
     p_next.y = snap(p2.y, dir.y);
+    out = 3;
     return p_next;
 }
+
 
 void draw_map(Rectangle boundary) {
     ImageClearBackground(&map_img, map_bg);
@@ -144,14 +157,45 @@ void draw_map(Rectangle boundary) {
 	}
     }
     Vector2 player_map = Vector2Multiply(player.position, size);
-    Vector2 p2_map = Vector2Multiply(Vector2Add(player.position, Vector2Scale(player.direction, num_cols / 2.f)), size);
+    Vector2 p2 = Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane));
+    Vector2 p2_map = Vector2Multiply(p2, size);
     ImageDrawCircleV(&map_img, player_map, 2, player.color);
     ImageDrawLineV(&map_img, player_map, p2_map, player.color);
     ImageDrawCircleV(&map_img, p2_map, 2, player.color);
-    ImageDrawLineV(&map_img, player_map, to_map(player.fov_left()), player.color);
-    ImageDrawLineV(&map_img, player_map, to_map(player.fov_right()), player.color);
-    ImageDrawLineV(&map_img, to_map(player.fov_right()), to_map(player.fov_left()), player.color);
-
+    ImageDrawLineV(&map_img, player_map, to_map(player.fov_left()), BLUE);
+    ImageDrawLineV(&map_img, player_map, to_map(player.fov_right()), GREEN);
+    ImageDrawLineV(&map_img, to_map(player.fov_right()), to_map(player.fov_left()), RED);
+    
+    Vector2 prev = player.position;
+    Vector2 next = p2;
+    Vector2 ray_dir = Vector2Normalize(Vector2Subtract(p2, player.position));
+    Vector2 left = player.fov_left();
+    Vector2 right = player.fov_right();
+    Vector2 left_right = Vector2Subtract(right, left);
+    u64 step_max = 100;
+    for (int step = 0; step < step_max; ++step) {
+	prev = player.position;
+	ray_dir = Vector2Subtract(left, player.position);
+	next = Vector2Add(player.position, ray_dir);
+	for(int i = 0; i < player.far_plane; ++i) {
+	    int kind = 0;
+	    Vector2 p = next_point(prev, next, kind);
+	    Color c = colors[kind];
+	    prev = next;
+	    next = p;
+	    ImageDrawLineV(&map_img, to_map(prev), to_map(next), c);
+	    Point cell = grid_coords(Vector2Add(next, Vector2Scale(ray_dir, EPSILON*2.f)));
+	    if (level[index(cell.x, cell.y)]) {
+		ImageDrawCircleV(&map_img, to_map(next), 10, MAGENTA);
+		ImageDrawCircleV(&map_img, to_map({(float)cell.x, (float)cell.y}), 10, RED);
+		break;
+	    }
+	    else {
+		ImageDrawCircleV(&map_img, to_map(next), 3, WHITE);
+	    }
+	}
+	left = Vector2Add(left, Vector2Scale(left_right, 1.f / step_max));
+    }
 
 }
 
@@ -221,7 +265,8 @@ void draw_walls() {
     float strip_width = 1;
 
     for(u64 x = 0; x < window_size.x; ++x) {
-	cell = next_point(player.position, left);
+	int kind;
+	cell = next_point(player.position, left, kind);
 	Color c = RED;
 	float distance = 0.f;
 	while(distance <= player.far_plane) {
@@ -261,12 +306,11 @@ void draw_walls() {
 		}
 	    }
 	    prev = cell;	
-	    cell = next_point(cell, Vector2Add(cell, Vector2Scale(direction, player.near_plane)));
+	    cell = next_point(cell, Vector2Add(cell, Vector2Scale(direction, player.near_plane)), kind);
 	}
 	left = Vector2Add(left, left_to_right);
 	direction = Vector2Normalize(Vector2Subtract(left, player.position));
     }
-    draw_map(map_boundary);
 }
 
 void draw_ceiling() {
@@ -289,7 +333,8 @@ int main() {
 	ImageClearBackground(&game_img, bg_color);
 	controls();
 	//draw_ceiling();
-	draw_walls();
+//	draw_walls();
+	draw_map(map_boundary);
 	UpdateTexture(game_tex, game_img.data); 
 	UpdateTexture(map_txt, map_img.data); 
 	DrawTexture(game_tex, 0, 0, WHITE);
