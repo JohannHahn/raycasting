@@ -11,7 +11,7 @@ constexpr Vector2 window_size = {900.f, 900.f}; constexpr const char* window_tit
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
-constexpr float map_factor = 1.f;
+constexpr float map_factor = 2.f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Color bg_color = BLACK;
 Color map_bg = DARKGRAY;
@@ -27,6 +27,7 @@ Image johannder_img = LoadImage(johannder_path);
 Texture stone_wall_tex;
 Texture johannder_tex;
 Vector2 light_pos = {0.f, 0.f};
+float epsilon = 0.0001f;
 
 enum wall_tex {
     EMPTY, FLAT, STONE_WALL, JOHANNDER,
@@ -44,7 +45,7 @@ struct Player {
     Vector2 direction = {0.f, 1.f};
     float speed = 2.f;
     float rotation_speed = PI;
-    float near_plane = 1.f;
+    float near_plane = .01f;
     float far_plane = num_cols * 2;
     void change_dir(int sign) {
 	if (sign < 0) sign = -1;
@@ -52,7 +53,7 @@ struct Player {
 	direction = Vector2Normalize(Vector2Rotate(direction, sign * rotation_speed * GetFrameTime()));
     }
     Color color = RED;
-    float size = near_plane + EPSILON;
+    float size = near_plane + epsilon;
     Vector2 fov_left() {
 	return Vector2Subtract(Vector2Add(position, Vector2Scale(direction, near_plane)), Vector2Rotate(Vector2Scale(direction, near_plane), PI/2));
     }
@@ -93,17 +94,13 @@ wall_tex level[num_rows * num_cols] = {
 float snap(float n, float dn) {
     
     if(dn > 0) {
-	return std::ceil(n + EPSILON);
+	return std::ceil(n + epsilon * 2.f);
     }
 
     if(dn < 0) { 
-	return std::floor(n - EPSILON);
+	return std::floor(n - epsilon * 2.f);
     }
     return n;
-}
-
-Point grid_coords(Vector2 v) {
-    return {(u64)v.x, (u64)v.y};
 }
 
 Vector2 next_point(Vector2 p, Vector2 p2, int& out) {
@@ -172,7 +169,7 @@ void draw_map(Rectangle boundary) {
     Vector2 left = player.fov_left();
     Vector2 right = player.fov_right();
     Vector2 left_right = Vector2Subtract(right, left);
-    u64 step_max = 100;
+    u64 step_max = 20;
     for (int step = 0; step < step_max; ++step) {
 	prev = player.position;
 	ray_dir = Vector2Subtract(left, player.position);
@@ -184,7 +181,13 @@ void draw_map(Rectangle boundary) {
 	    prev = next;
 	    next = p;
 	    ImageDrawLineV(&map_img, to_map(prev), to_map(next), c);
-	    Point cell = grid_coords(Vector2Add(next, Vector2Scale(ray_dir, EPSILON*2.f)));
+	    Vector2 cell = Vector2Add(next, Vector2Scale(ray_dir, epsilon));
+	    cell.x = floor(cell.x);
+	    cell.y = floor(cell.y);
+	    Vector2 cell_map = to_map(cell);
+	    Rectangle r = {cell_map.x, cell_map.y, size.x, size.y};
+	    ImageDrawRectangleLines(&map_img, r, 2, RED);
+	    ImageDrawLineV(&map_img, to_map(next), cell_map, YELLOW);
 	    if (level[index(cell.x, cell.y)]) {
 		ImageDrawCircleV(&map_img, to_map(next), 10, MAGENTA);
 		ImageDrawCircleV(&map_img, to_map({(float)cell.x, (float)cell.y}), 10, RED);
@@ -271,17 +274,16 @@ void draw_walls() {
 	float distance = 0.f;
 	while(distance <= player.far_plane) {
 	//for (u64 depth = 0; depth < player.far_plane; ++depth) {
-	    cell = Vector2Add(cell, Vector2Scale(Vector2Normalize(Vector2Subtract(cell, prev)), EPSILON));
+	    cell = Vector2Add(cell, Vector2Scale(Vector2Subtract(cell, prev), epsilon));
 	    u64 lx = std::floor(cell.x);
 	    u64 ly = std::floor(cell.y);
 	    distance = Vector2DotProduct(Vector2Subtract(cell, player.position), player.direction) * 2.f;
 	    float scale = 1.f / distance; 
-	    float color_scale = scale - 0.5f;
+	    float color_scale = scale - 0.6f;
 	    c = ColorBrightness(RED, color_scale);
-	    if (distance > player.near_plane && lx < num_cols && ly < num_rows) {
+	    if (lx < num_cols && ly < num_rows) {
 		wall_tex cell_type = level[index(lx, ly)];
 		if(cell_type) {
-
 		    //debug
 		    ImageDrawLineV(&map_img, to_map(prev), to_map(cell), BLUE); 
 		    Vector2 v = to_map({float(lx), float(ly)});
@@ -296,7 +298,7 @@ void draw_walls() {
 		    Image img = cell_type == STONE_WALL ? stone_wall_img : johannder_img; 
 		    Vector2 t = Vector2Subtract(cell, {(float)lx, (float)ly});
 		    u64 u = 0;
-		    if (std::abs(t.x - 1.f) < EPSILON || std::abs(t.x) < EPSILON) {
+		    if (std::abs(t.x - 1.f) < epsilon || std::abs(t.x) < epsilon) {
 			u = t.y * img.width;
 		    }
 		    else u = t.x * img.width;
@@ -333,7 +335,7 @@ int main() {
 	ImageClearBackground(&game_img, bg_color);
 	controls();
 	//draw_ceiling();
-//	draw_walls();
+	draw_walls();
 	draw_map(map_boundary);
 	UpdateTexture(game_tex, game_img.data); 
 	UpdateTexture(map_txt, map_img.data); 
