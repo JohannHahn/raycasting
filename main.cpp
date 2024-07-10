@@ -213,11 +213,12 @@ void draw_walls() {
 	    prev = cell;	
 	    cell = next_point(cell, Vector2Scale(direction, EPSILON));
 	    if(lx < num_cols && ly < num_rows && level[index(lx, ly)]) {
-		u64 u = (std::abs(prev.x) - std::abs(std::floor(prev.x))) * stone_wall_img.width;
+		u64 u = (prev.x - std::floor(prev.x)) * stone_wall_img.width;
 		draw_strip(x, u, scale, c);
 		break;
 	    }
 	    if (x == (u64)window_size.x / 2) {
+		draw_map(map_boundary);
 		DrawLineV(to_map(prev), to_map(cell), BLUE); 
 		DrawCircleV(to_map(prev), 3, RED);
 		Vector2 v = to_map({float(lx), float(ly)});
@@ -229,6 +230,7 @@ void draw_walls() {
 	left = Vector2Add(left, left_to_right);
 	direction = Vector2Normalize(Vector2Subtract(left, player.position));
     }
+    draw_map(map_boundary);
 }
 
 void draw_ceiling() {
@@ -249,7 +251,6 @@ int main() {
 	ImageClearBackground(&game_img, bg_color);
 	controls();
 	//draw_ceiling();
-	draw_map(map_boundary);
 	draw_walls();
 	UpdateTexture(game_tex, game_img.data); 
 	DrawTexture(game_tex, 0, 0, WHITE);
