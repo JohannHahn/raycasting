@@ -11,7 +11,7 @@ typedef uint32_t u32;
 constexpr Vector2 window_size = {900.f, 900.f}; constexpr const char* window_title = "not doom";
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
-constexpr float fps = 660.f;
+constexpr float fps = 60.f;
 constexpr float map_factor = 2.f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Color bg_color = BLACK;
@@ -27,7 +27,7 @@ Image stone_wall_img = LoadImage(wall_tex_path);
 Image johannder_img = LoadImage(johannder_path);
 Texture stone_wall_tex;
 Texture johannder_tex;
-Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
+Vector2 light_pos = {0.f, 0.f};
 
 enum wall_tex {
     EMPTY, FLAT, STONE_WALL, JOHANNDER,
@@ -39,7 +39,7 @@ struct Player {
     Vector2 direction = {0.f, 1.f};
     float speed = 2.f;
     float rotation_speed = PI;
-    float near_plane = .4f;
+    float near_plane = 0.01f;
     float far_plane = num_cols * 2;
     void change_dir(int sign) {
 	if (sign < 0) sign = -1;
@@ -48,6 +48,12 @@ struct Player {
     }
     Color color = RED;
     float size = near_plane + EPSILON;
+    Vector2 fov_left() {
+	return Vector2Subtract(Vector2Add(position, Vector2Scale(direction, near_plane)), Vector2Rotate(Vector2Scale(direction, near_plane), PI/2));
+    }
+    Vector2 fov_right() {
+	return Vector2Add(Vector2Add(position, Vector2Scale(direction, near_plane)), Vector2Rotate(Vector2Scale(direction, near_plane), PI/2));
+    }
 };
 Player player;
 
@@ -91,9 +97,9 @@ float snap(float n, float dn) {
     return n;
 }
 
-Vector2 next_point(Vector2 p, Vector2 dir) {
+Vector2 next_point(Vector2 p, Vector2 p2) {
     Vector2 p_next = {0,0};
-    Vector2 p2 = Vector2Add(p, dir);
+    Vector2 dir = Vector2Subtract(p2, p);
     //y1 = mx1 + c
     //y2 = mx2 + c
     //c = y1 - mx1
@@ -139,9 +145,12 @@ void draw_map(Rectangle boundary) {
     }
     Vector2 player_map = Vector2Multiply(player.position, size);
     Vector2 p2_map = Vector2Multiply(Vector2Add(player.position, Vector2Scale(player.direction, num_cols / 2.f)), size);
-    ImageDrawCircleV(&map_img, player_map, player.size * size.x, player.color);
+    ImageDrawCircleV(&map_img, player_map, 2, player.color);
     ImageDrawLineV(&map_img, player_map, p2_map, player.color);
-    ImageDrawCircleV(&map_img, p2_map, player.size * size.x / 2.f, player.color);
+    ImageDrawCircleV(&map_img, p2_map, 2, player.color);
+    ImageDrawLineV(&map_img, player_map, to_map(player.fov_left()), player.color);
+    ImageDrawLineV(&map_img, player_map, to_map(player.fov_right()), player.color);
+    ImageDrawLineV(&map_img, to_map(player.fov_right()), to_map(player.fov_left()), player.color);
 
 
 }
@@ -175,6 +184,7 @@ void controls() {
     if (IsKeyDown(KEY_RIGHT)) {
 	player.change_dir(1);
     } 
+    player.position = new_pos;
 }
 
 void draw_strip_flat(u64 x, float scale, Color c) {
@@ -201,16 +211,17 @@ void draw_strip(u64 x, u64 u, float scale, Image img) {
 void draw_walls() {
     Vector2 cell = player.position;
     Vector2 p2 = Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane));
-    Vector2 left = Vector2Add(p2, Vector2Rotate(Vector2Scale(player.direction, player.near_plane), -PI / 2.f));
-    Vector2 right = Vector2Add(p2, Vector2Rotate(Vector2Scale(player.direction, player.near_plane), PI / 2.f));
+    Vector2 left = player.fov_left();
+    Vector2 right = player.fov_right();
     Vector2 left_to_right = Vector2Scale(Vector2Normalize(Vector2Subtract(right, left)), player.near_plane * 2.f / window_size.x);
     Vector2 direction = Vector2Normalize(Vector2Subtract(left, player.position));
     Vector2 prev = cell;
     DrawLineV(to_map(player.position), to_map(left), BLUE);
     DrawLineV(to_map(player.position), to_map(right), BLUE);
     float strip_width = 1;
+
     for(u64 x = 0; x < window_size.x; ++x) {
-	cell = player.position;
+	cell = next_point(player.position, left);
 	Color c = RED;
 	float distance = 0.f;
 	while(distance <= player.far_plane) {
@@ -218,40 +229,39 @@ void draw_walls() {
 	    cell = Vector2Add(cell, Vector2Scale(Vector2Normalize(Vector2Subtract(cell, prev)), EPSILON));
 	    u64 lx = std::floor(cell.x);
 	    u64 ly = std::floor(cell.y);
-	    //float distance = Vector2Length(Vector2Subtract(cell, player.position));
 	    distance = Vector2DotProduct(Vector2Subtract(cell, player.position), player.direction) * 2.f;
 	    float scale = 1.f / distance; 
-	    float color_scale = 1.f / Vector2Length(Vector2Subtract(light_pos, cell));
+	    float color_scale = scale - 0.5f;
 	    c = ColorBrightness(RED, color_scale);
-	    prev = cell;	
-	    cell = next_point(cell, Vector2Scale(direction, EPSILON));
-	    //debug
-	    
-	    if (lx < num_cols && ly < num_rows) {
+	    if (distance > player.near_plane && lx < num_cols && ly < num_rows) {
 		wall_tex cell_type = level[index(lx, ly)];
 		if(cell_type) {
+
+		    //debug
 		    ImageDrawLineV(&map_img, to_map(prev), to_map(cell), BLUE); 
-		    ImageDrawCircleV(&map_img, to_map(prev), 3, RED);
 		    Vector2 v = to_map({float(lx), float(ly)});
+		    ImageDrawCircleV(&map_img, to_map(cell), 3, RED);
 		    ImageDrawRectangleLines(&map_img, {v.x, v.y, to_screen.x / map_factor, to_screen.y / map_factor}, 1, RED);
 		    Vector2 camera_plane = Vector2Add(player.position, left_to_right);
 		    ImageDrawLineV(&map_img, to_map(player.position), to_map(Vector2Add(camera_plane, Vector2Scale(left_to_right, 100))), GREEN);
-
 		    if (cell_type == FLAT) {
 			draw_strip_flat(x, scale, c);
 			break;
 		    }
 		    Image img = cell_type == STONE_WALL ? stone_wall_img : johannder_img; 
-		    Vector2 t = Vector2Subtract(prev, {(float)lx, (float)ly});
+		    Vector2 t = Vector2Subtract(cell, {(float)lx, (float)ly});
 		    u64 u = 0;
 		    if (std::abs(t.x - 1.f) < EPSILON || std::abs(t.x) < EPSILON) {
-			u = (1.f - t.y) * img.width;
+			u = t.y * img.width;
 		    }
 		    else u = t.x * img.width;
+		    u = t.y * img.width;
 		    draw_strip(x, u, scale, img);
 		    break;
 		}
 	    }
+	    prev = cell;	
+	    cell = next_point(cell, Vector2Add(cell, Vector2Scale(direction, player.near_plane)));
 	}
 	left = Vector2Add(left, left_to_right);
 	direction = Vector2Normalize(Vector2Subtract(left, player.position));
