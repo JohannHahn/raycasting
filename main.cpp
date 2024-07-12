@@ -13,6 +13,7 @@ constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
 constexpr float map_factor = 2.f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
+Rectangle game_boundary = {0.f, 0.f, window_size.x, window_size.y};
 Color bg_color = BLACK;
 Color map_bg = DARKGRAY;
 Image map_img = GenImageColor(map_boundary.width, map_boundary.height, map_bg);
@@ -27,7 +28,11 @@ Image johannder_img = LoadImage(johannder_path);
 Texture stone_wall_tex;
 Texture johannder_tex;
 Vector2 light_pos = {0.f, 0.f};
-float epsilon = 0.0001f;
+float epsilon = 0.00001f;
+
+enum side_kind {
+    UNUSED, X, Y, PARALLEL 
+};
 
 enum wall_tex {
     EMPTY, FLAT, STONE_WALL, JOHANNDER,
@@ -45,7 +50,7 @@ struct Player {
     Vector2 direction = {0.f, 1.f};
     float speed = 2.f;
     float rotation_speed = PI;
-    float near_plane = .01f;
+    float near_plane = .1f;
     float far_plane = num_cols * 2;
     void change_dir(int sign) {
 	if (sign < 0) sign = -1;
@@ -53,7 +58,7 @@ struct Player {
 	direction = Vector2Normalize(Vector2Rotate(direction, sign * rotation_speed * GetFrameTime()));
     }
     Color color = RED;
-    float size = near_plane + epsilon;
+    float size = 0.4f;
     Vector2 fov_left() {
 	return Vector2Subtract(Vector2Add(position, Vector2Scale(direction, near_plane)), Vector2Rotate(Vector2Scale(direction, near_plane), PI/2));
     }
@@ -94,11 +99,11 @@ wall_tex level[num_rows * num_cols] = {
 float snap(float n, float dn) {
     
     if(dn > 0) {
-	return std::ceil(n + epsilon * 2.f);
+	return std::ceil(n + epsilon);
     }
 
     if(dn < 0) { 
-	return std::floor(n - epsilon * 2.f);
+	return std::floor(n - epsilon);
     }
     return n;
 }
@@ -123,16 +128,16 @@ Vector2 next_point(Vector2 p, Vector2 p2, int& out) {
 	    float first_distance = Vector2Length(Vector2Subtract(p_next, p2));
 	    float second_distance = Vector2Length(Vector2Subtract(second_candidate, p2));
 	    if (second_distance < first_distance) {
-		out = 2;
+		out = Y;
 		return second_candidate;
 	    }
 	}
-	out = 1;
+	out = X;
 	return p_next;
     }
     p_next.x = p2.x;
     p_next.y = snap(p2.y, dir.y);
-    out = 3;
+    out = PARALLEL;
     return p_next;
 }
 
@@ -162,14 +167,14 @@ void draw_map(Rectangle boundary) {
     ImageDrawLineV(&map_img, player_map, to_map(player.fov_left()), BLUE);
     ImageDrawLineV(&map_img, player_map, to_map(player.fov_right()), GREEN);
     ImageDrawLineV(&map_img, to_map(player.fov_right()), to_map(player.fov_left()), RED);
-    
+
     Vector2 prev = player.position;
     Vector2 next = p2;
     Vector2 ray_dir = Vector2Normalize(Vector2Subtract(p2, player.position));
     Vector2 left = player.fov_left();
     Vector2 right = player.fov_right();
     Vector2 left_right = Vector2Subtract(right, left);
-    u64 step_max = 20;
+    u64 step_max = 100;
     for (int step = 0; step < step_max; ++step) {
 	prev = player.position;
 	ray_dir = Vector2Subtract(left, player.position);
@@ -199,7 +204,6 @@ void draw_map(Rectangle boundary) {
 	}
 	left = Vector2Add(left, Vector2Scale(left_right, 1.f / step_max));
     }
-
 }
 
 bool inside_wall(Vector2 p) {
@@ -211,19 +215,19 @@ void controls() {
     Vector2 new_pos = player.position;
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
 	new_pos = Vector2Subtract(player.position, Vector2Scale(player.direction, player.speed * dt));
-	if (!inside_wall(new_pos)) player.position = new_pos;
+	if (!inside_wall(Vector2Add(new_pos, Vector2Scale(player.direction, player.size)))) player.position = new_pos;
     } 
     if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
 	new_pos = Vector2Add(player.position, Vector2Scale(player.direction, player.speed * dt));
-	if (!inside_wall(new_pos)) player.position = new_pos;
+	if (!inside_wall(Vector2Add(new_pos, Vector2Scale(player.direction, player.size)))) player.position = new_pos;
     } 
     if (IsKeyDown(KEY_A)) {
 	new_pos = Vector2Add(player.position, Vector2Scale(Vector2Rotate(player.direction, -PI/2.f), player.speed * dt));
-	if (!inside_wall(new_pos)) player.position = new_pos;
+	if (!inside_wall(Vector2Add(new_pos, Vector2Scale(player.direction, player.size)))) player.position = new_pos;
     } 
     if (IsKeyDown(KEY_D)) {
 	new_pos = Vector2Add(player.position, Vector2Scale(Vector2Rotate(player.direction, PI/2.f), player.speed * dt));
-	if (!inside_wall(new_pos)) player.position = new_pos;
+	if (!inside_wall(Vector2Add(new_pos, Vector2Scale(player.direction, player.size)))) player.position = new_pos;
     } 
     if (IsKeyDown(KEY_LEFT)) {
 	player.change_dir(-1);
@@ -231,18 +235,18 @@ void controls() {
     if (IsKeyDown(KEY_RIGHT)) {
 	player.change_dir(1);
     } 
-    player.position = new_pos;
+    //player.position = new_pos;
 }
 
 void draw_strip_flat(u64 x, float scale, Color c) {
     scale = Clamp(scale, 0.f, 1.f);
-    Rectangle strip = squish_rec({(float)x, 0, 1.f, window_size.y - 1}, scale);
+    Rectangle strip = squish_rec({(float)x, 0, 2.f, window_size.y - 1}, scale);
     ImageDrawRectangleRec(&game_img, strip, c);
 }
 
 void draw_strip(u64 x, u64 u, float scale, Image img) {
     scale = Clamp(scale, 0.f, 1.f);
-    Rectangle strip = squish_rec({(float)x, 0, 1.f, window_size.y - 1}, scale);
+    Rectangle strip = squish_rec({(float)x, 0, 2.f, window_size.y - 1}, scale);
     if (u > img.width && "!") return;
     float v = 0.f;
     for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
@@ -252,6 +256,51 @@ void draw_strip(u64 x, u64 u, float scale, Image img) {
 	    ImageDrawPixel(&game_img, x, y, ColorBrightness(*col, scale / 4.f));
 	}
 	v += 1.f / strip.height * img.height;
+    }
+}
+
+void draw_walls2(Rectangle boundary) {
+    Vector2 size = {boundary.width / num_cols, boundary.height / num_rows};
+    Vector2 prev = player.position;
+    Vector2 p2 = Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane));
+    Vector2 next = p2;
+    Vector2 ray_dir = Vector2Normalize(Vector2Subtract(p2, player.position));
+    Vector2 left = player.fov_left();
+    Vector2 right = player.fov_right();
+    Vector2 left_right = Vector2Subtract(right, left);
+    for (int x = boundary.x; x < boundary.width; ++x) {
+	prev = player.position;
+	ray_dir = Vector2Subtract(left, player.position);
+	next = Vector2Add(player.position, ray_dir);
+	for(int i = 0; i < player.far_plane; ++i) {
+	    int kind = 0;
+	    Vector2 p = next_point(prev, next, kind);
+	    Color c = colors[kind];
+	    prev = next;
+	    next = p;
+	    Vector2 cell = Vector2Add(next, Vector2Scale(ray_dir, epsilon * 100.f));
+	    cell.x = floor(cell.x);
+	    cell.y = floor(cell.y);
+	    wall_tex cell_type = level[index(cell.x, cell.y)];
+	    if (cell_type) {
+		float distance = Vector2DotProduct(Vector2Subtract(next, player.position), player.direction) * 2.f;
+		if (cell_type == FLAT) draw_strip_flat(x, 1.f / distance, c);
+		else if (cell_type == JOHANNDER) {
+		    Vector2 t = Vector2Subtract(next, cell);
+		    float u = (kind == Y ? std::abs(t.x) : std::abs(1.f - t.y));
+		    draw_strip(x, u * johannder_img.width, 1.f / distance, johannder_img);
+		}
+		else if (cell_type == STONE_WALL) {
+		    Vector2 t = Vector2Subtract(next, cell);
+		    float u = (kind == Y ? std::abs(t.x) : std::abs(t.y));
+		    draw_strip(x, u * stone_wall_img.width, 1.f / distance, stone_wall_img);
+		}
+		break;
+	    }
+	    else {
+	    }
+	}
+	left = Vector2Add(left, Vector2Scale(left_right, 1.f / window_size.x));
     }
 }
 
@@ -267,7 +316,7 @@ void draw_walls() {
     DrawLineV(to_map(player.position), to_map(right), BLUE);
     float strip_width = 1;
 
-    for(u64 x = 0; x < window_size.x; ++x) {
+    for(u64 x = window_size.x / 2; x < window_size.x/2 + 10; ++x) {
 	int kind;
 	cell = next_point(player.position, left, kind);
 	Color c = RED;
@@ -335,8 +384,8 @@ int main() {
 	ImageClearBackground(&game_img, bg_color);
 	controls();
 	//draw_ceiling();
-	draw_walls();
 	draw_map(map_boundary);
+	draw_walls2(game_boundary);
 	UpdateTexture(game_tex, game_img.data); 
 	UpdateTexture(map_txt, map_img.data); 
 	DrawTexture(game_tex, 0, 0, WHITE);
