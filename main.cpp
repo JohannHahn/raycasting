@@ -54,8 +54,8 @@ constexpr bool float_equal(float a, float b) {
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
     Vector2 direction = {0.f, 1.f};
-    float speed = 2.f;
-    float rotation_speed = PI;
+    float speed = 5.f;
+    float rotation_speed = PI * 2.f;
     float near_plane = .1f;
     float far_plane = num_cols * 2;
     void change_dir(int sign) {
@@ -250,7 +250,13 @@ void controls() {
     if (IsKeyDown(KEY_RIGHT)) {
 	player.change_dir(1);
     } 
-    //player.position = new_pos;
+    if (IsKeyPressed(KEY_ONE)) {
+	player.speed += 0.1f;
+    } 
+    if (IsKeyPressed(KEY_TWO)) {
+	player.speed -= 0.1f;
+    } 
+    player.position = new_pos;
 }
 
 void draw_strip_flat(u64 x, float scale, Color c) {
@@ -277,7 +283,7 @@ void draw_strip(u64 x, u64 u, float scale, Image img) {
 }
 
 
-void draw_walls2(Rectangle boundary) {
+void draw_walls(Rectangle boundary) {
     Vector2 size = {boundary.width / num_cols, boundary.height / num_rows};
     Vector2 prev = player.position;
     Vector2 p2 = Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane));
@@ -302,8 +308,7 @@ void draw_walls2(Rectangle boundary) {
 	    if (cell_type) {
 		float distance = Vector2DotProduct(Vector2Subtract(next, player.position), player.direction) * 2.f;
 		Color c = colors[kind];
-		if (cell_type == FLAT) draw_strip_flat(x, 1.f / distance, c);
-		else if (cell_type == JOHANNDER) {
+		if (cell_type == JOHANNDER) {
 		    Vector2 t = Vector2Subtract(next, cell);
 		    float u = 0;
 		    if(float_equal(t.y, 1.f)) u = t.x;
@@ -321,6 +326,7 @@ void draw_walls2(Rectangle boundary) {
 		    else  u = 1.f - t.y;
 		    draw_strip(x, u * stone_wall_img.width, 1.f / distance, stone_wall_img);
 		}
+		else draw_strip_flat(x, 1.f / distance, c);
 		break;
 	    }
 	    else {
@@ -330,71 +336,9 @@ void draw_walls2(Rectangle boundary) {
     }
 }
 
-void draw_walls() {
-    Vector2 cell = player.position;
-    Vector2 p2 = Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane));
-    Vector2 left = player.fov_left();
-    Vector2 right = player.fov_right();
-    Vector2 left_to_right = Vector2Scale(Vector2Normalize(Vector2Subtract(right, left)), player.near_plane * 2.f / window_size.x);
-    Vector2 direction = Vector2Normalize(Vector2Subtract(left, player.position));
-    Vector2 prev = cell;
-    DrawLineV(to_map(player.position), to_map(left), BLUE);
-    DrawLineV(to_map(player.position), to_map(right), BLUE);
-    float strip_width = 1;
-
-    for(u64 x = window_size.x / 2; x < window_size.x/2 + 10; ++x) {
-	int kind;
-	cell = next_point(player.position, left, kind);
-	Color c = RED;
-	float distance = 0.f;
-	while(distance <= player.far_plane) {
-	//for (u64 depth = 0; depth < player.far_plane; ++depth) {
-	    cell = Vector2Add(cell, Vector2Scale(Vector2Subtract(cell, prev), epsilon));
-	    u64 lx = std::floor(cell.x);
-	    u64 ly = std::floor(cell.y);
-	    distance = Vector2DotProduct(Vector2Subtract(cell, player.position), player.direction) * 2.f;
-	    float scale = 1.f / distance; 
-	    float color_scale = scale - 0.6f;
-	    c = ColorBrightness(RED, color_scale);
-	    if (lx < num_cols && ly < num_rows) {
-		wall_tex cell_type = level[index(lx, ly)];
-		if(cell_type) {
-		    //debug
-		    ImageDrawLineV(&map_img, to_map(prev), to_map(cell), BLUE); 
-		    Vector2 v = to_map({float(lx), float(ly)});
-		    ImageDrawCircleV(&map_img, to_map(cell), 3, RED);
-		    ImageDrawRectangleLines(&map_img, {v.x, v.y, to_screen.x / map_factor, to_screen.y / map_factor}, 1, RED);
-		    Vector2 camera_plane = Vector2Add(player.position, left_to_right);
-		    ImageDrawLineV(&map_img, to_map(player.position), to_map(Vector2Add(camera_plane, Vector2Scale(left_to_right, 100))), GREEN);
-		    if (cell_type == FLAT) {
-			draw_strip_flat(x, scale, c);
-			break;
-		    }
-		    Image img = cell_type == STONE_WALL ? stone_wall_img : johannder_img; 
-		    Vector2 t = Vector2Subtract(cell, {(float)lx, (float)ly});
-		    u64 u = 0;
-		    if (std::abs(t.x - 1.f) < epsilon || std::abs(t.x) < epsilon) {
-			u = t.y * img.width;
-		    }
-		    else u = t.x * img.width;
-		    u = t.y * img.width;
-		    draw_strip(x, u, scale, img);
-		    break;
-		}
-	    }
-	    prev = cell;	
-	    cell = next_point(cell, Vector2Add(cell, Vector2Scale(direction, player.near_plane)), kind);
-	}
-	left = Vector2Add(left, left_to_right);
-	direction = Vector2Normalize(Vector2Subtract(left, player.position));
-    }
-}
-
-
 void draw_floor() {
     ImageDrawRectangleV(&game_img, {0.f, window_size.y / 2.f}, {window_size.x, window_size.y / 2.f}, floor_col);
 }
-
 
 int main() {
     InitWindow(window_size.x, window_size.y, window_title);
@@ -412,7 +356,7 @@ int main() {
 	controls();
 	draw_floor();
 	draw_map(map_boundary);
-	draw_walls2(game_boundary);
+	draw_walls(game_boundary);
 	UpdateTexture(game_tex, game_img.data); 
 	UpdateTexture(map_txt, map_img.data); 
 	DrawTexture(game_tex, 0, 0, WHITE);
