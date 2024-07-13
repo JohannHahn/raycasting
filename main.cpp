@@ -12,6 +12,7 @@ constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
 constexpr float map_factor = 2.f;
+constexpr float epsilon = 0.00001f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Rectangle game_boundary = {0.f, 0.f, window_size.x, window_size.y};
 Color bg_color = SKYBLUE;
@@ -29,7 +30,6 @@ Image johannder_img = LoadImage(johannder_path);
 Texture stone_wall_tex;
 Texture johannder_tex;
 Vector2 light_pos = {0.f, 0.f};
-float epsilon = 0.00001f;
 bool debug_map = false;
 
 enum side_kind {
@@ -46,6 +46,10 @@ struct Point{
 };
 
 Color colors[] = {BLACK, RED, GREEN, BLUE};
+
+constexpr bool float_equal(float a, float b) {
+    return std::abs(a - b) < epsilon;
+}
 
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
@@ -301,12 +305,20 @@ void draw_walls2(Rectangle boundary) {
 		if (cell_type == FLAT) draw_strip_flat(x, 1.f / distance, c);
 		else if (cell_type == JOHANNDER) {
 		    Vector2 t = Vector2Subtract(next, cell);
-		    float u = (kind == Y ? std::abs(t.x) : std::abs(1.f - t.y));
+		    float u = 0;
+		    if(float_equal(t.y, 1.f)) u = t.x;
+		    else if(float_equal(t.y, 0.f)) u = 1.f - t.x;
+		    else if(float_equal(t.x, 0.f)) u = t.y;
+		    else  u = 1.f - t.y;
 		    draw_strip(x, u * johannder_img.width, 1.f / distance, johannder_img);
 		}
 		else if (cell_type == STONE_WALL) {
 		    Vector2 t = Vector2Subtract(next, cell);
-		    float u = (kind == Y ? std::abs(t.x) : std::abs(t.y));
+		    float u = 0;
+		    if(float_equal(t.y, 1.f)) u = t.x;
+		    else if(float_equal(t.y, 0.f)) u = 1.f - t.x;
+		    else if(float_equal(t.x, 0.f)) u = t.y;
+		    else  u = 1.f - t.y;
 		    draw_strip(x, u * stone_wall_img.width, 1.f / distance, stone_wall_img);
 		}
 		break;
