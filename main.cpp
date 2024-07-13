@@ -11,7 +11,7 @@ constexpr Vector2 window_size = {900.f, 900.f}; constexpr const char* window_tit
 constexpr u64 num_cols = 10;
 constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
-constexpr float map_factor = 2.f;
+constexpr float map_factor = 3.f;
 constexpr float epsilon = 0.00001f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Rectangle game_boundary = {0.f, 0.f, window_size.x, window_size.y};
@@ -317,7 +317,7 @@ void draw_walls(Rectangle boundary) {
 		    else  u = 1.f - t.y;
 		    draw_strip(x, u * johannder_img.width, 1.f / distance, johannder_img);
 		}
-		else if (cell_type == STONE_WALL) {
+		else {
 		    Vector2 t = Vector2Subtract(next, cell);
 		    float u = 0;
 		    if(float_equal(t.y, 1.f)) u = t.x;
@@ -326,7 +326,7 @@ void draw_walls(Rectangle boundary) {
 		    else  u = 1.f - t.y;
 		    draw_strip(x, u * stone_wall_img.width, 1.f / distance, stone_wall_img);
 		}
-		else draw_strip_flat(x, 1.f / distance, c);
+		//else draw_strip_flat(x, 1.f / distance, c);
 		break;
 	    }
 	    else {
@@ -337,7 +337,14 @@ void draw_walls(Rectangle boundary) {
 }
 
 void draw_floor() {
-    ImageDrawRectangleV(&game_img, {0.f, window_size.y / 2.f}, {window_size.x, window_size.y / 2.f}, floor_col);
+    u64 max = 100;
+    float height = window_size.y / 2.f / max;
+    Color c = floor_col;
+    for(int depth = 0; depth <= max; ++depth) {
+	ImageDrawRectangleV(&game_img, {0.f, window_size.y - (depth) * height}, {window_size.x, height}, c);
+	c = ColorFromHSV(PI * (depth + 1), 0.8f, 0.5f);
+	color_brightness(c, depth / (float)max);
+    }
 }
 
 int main() {
