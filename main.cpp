@@ -14,8 +14,9 @@ constexpr float fps = 60.f;
 constexpr float map_factor = 2.f;
 Rectangle map_boundary = {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor};
 Rectangle game_boundary = {0.f, 0.f, window_size.x, window_size.y};
-Color bg_color = BLACK;
-Color map_bg = DARKGRAY;
+Color bg_color = SKYBLUE;
+Color map_bg = GRAY;
+Color floor_col = DARKGRAY;
 Image map_img = GenImageColor(map_boundary.width, map_boundary.height, map_bg);
 Texture map_txt;
 Image game_img = GenImageColor(window_size.x, window_size.y, bg_color);
@@ -29,6 +30,7 @@ Texture stone_wall_tex;
 Texture johannder_tex;
 Vector2 light_pos = {0.f, 0.f};
 float epsilon = 0.00001f;
+bool debug_map = false;
 
 enum side_kind {
     UNUSED, X, Y, PARALLEL 
@@ -73,6 +75,13 @@ constexpr u64 index(u64 x, u64 y) {
     return x + y * num_cols;
 }
 
+void color_brightness(Color& c, float scale) {
+    scale = Clamp(scale, 0.f, 1.f);
+    c.r *= scale;
+    c.g *= scale;
+    c.b *= scale;
+}
+
 Rectangle squish_rec(Rectangle r, float factor) {
     float h = r.height * factor;
     float y = (r.height - h) * 0.5f;
@@ -85,9 +94,9 @@ Vector2 to_map(Vector2 v) {
 
 wall_tex level[num_rows * num_cols] = {
     FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, EMPTY, JOHANNDER, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY,	    JOHANNDER, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY,	    JOHANNDER, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, JOHANNDER, JOHANNDER, JOHANNDER, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
     FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
     FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
     FLAT, STONE_WALL, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
@@ -168,41 +177,43 @@ void draw_map(Rectangle boundary) {
     ImageDrawLineV(&map_img, player_map, to_map(player.fov_right()), GREEN);
     ImageDrawLineV(&map_img, to_map(player.fov_right()), to_map(player.fov_left()), RED);
 
-    Vector2 prev = player.position;
-    Vector2 next = p2;
-    Vector2 ray_dir = Vector2Normalize(Vector2Subtract(p2, player.position));
-    Vector2 left = player.fov_left();
-    Vector2 right = player.fov_right();
-    Vector2 left_right = Vector2Subtract(right, left);
-    u64 step_max = 100;
-    for (int step = 0; step < step_max; ++step) {
-	prev = player.position;
-	ray_dir = Vector2Subtract(left, player.position);
-	next = Vector2Add(player.position, ray_dir);
-	for(int i = 0; i < player.far_plane; ++i) {
-	    int kind = 0;
-	    Vector2 p = next_point(prev, next, kind);
-	    Color c = colors[kind];
-	    prev = next;
-	    next = p;
-	    ImageDrawLineV(&map_img, to_map(prev), to_map(next), c);
-	    Vector2 cell = Vector2Add(next, Vector2Scale(ray_dir, epsilon));
-	    cell.x = floor(cell.x);
-	    cell.y = floor(cell.y);
-	    Vector2 cell_map = to_map(cell);
-	    Rectangle r = {cell_map.x, cell_map.y, size.x, size.y};
-	    ImageDrawRectangleLines(&map_img, r, 2, RED);
-	    ImageDrawLineV(&map_img, to_map(next), cell_map, YELLOW);
-	    if (level[index(cell.x, cell.y)]) {
-		ImageDrawCircleV(&map_img, to_map(next), 10, MAGENTA);
-		ImageDrawCircleV(&map_img, to_map({(float)cell.x, (float)cell.y}), 10, RED);
-		break;
+    if (debug_map) {
+	Vector2 prev = player.position;
+	Vector2 next = p2;
+	Vector2 ray_dir = Vector2Normalize(Vector2Subtract(p2, player.position));
+	Vector2 left = player.fov_left();
+	Vector2 right = player.fov_right();
+	Vector2 left_right = Vector2Subtract(right, left);
+	u64 step_max = 100;
+	for (int step = 0; step < step_max; ++step) {
+	    prev = player.position;
+	    ray_dir = Vector2Subtract(left, player.position);
+	    next = Vector2Add(player.position, ray_dir);
+	    for(int i = 0; i < player.far_plane; ++i) {
+		int kind = 0;
+		Vector2 p = next_point(prev, next, kind);
+		Color c = colors[kind];
+		prev = next;
+		next = p;
+		ImageDrawLineV(&map_img, to_map(prev), to_map(next), c);
+		Vector2 cell = Vector2Add(next, Vector2Scale(ray_dir, epsilon));
+		cell.x = floor(cell.x);
+		cell.y = floor(cell.y);
+		Vector2 cell_map = to_map(cell);
+		Rectangle r = {cell_map.x, cell_map.y, size.x, size.y};
+		ImageDrawRectangleLines(&map_img, r, 2, RED);
+		ImageDrawLineV(&map_img, to_map(next), cell_map, YELLOW);
+		if (level[index(cell.x, cell.y)]) {
+		    ImageDrawCircleV(&map_img, to_map(next), 10, MAGENTA);
+		    ImageDrawCircleV(&map_img, to_map({(float)cell.x, (float)cell.y}), 10, RED);
+		    break;
+		}
+		else {
+		    ImageDrawCircleV(&map_img, to_map(next), 3, WHITE);
+		}
 	    }
-	    else {
-		ImageDrawCircleV(&map_img, to_map(next), 3, WHITE);
-	    }
+	    left = Vector2Add(left, Vector2Scale(left_right, 1.f / step_max));
 	}
-	left = Vector2Add(left, Vector2Scale(left_right, 1.f / step_max));
     }
 }
 
@@ -241,6 +252,7 @@ void controls() {
 void draw_strip_flat(u64 x, float scale, Color c) {
     scale = Clamp(scale, 0.f, 1.f);
     Rectangle strip = squish_rec({(float)x, 0, 2.f, window_size.y - 1}, scale);
+    color_brightness(c, scale / 2.f);
     ImageDrawRectangleRec(&game_img, strip, c);
 }
 
@@ -253,11 +265,13 @@ void draw_strip(u64 x, u64 u, float scale, Image img) {
 	if (v < img.height) {
 	    u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
 	    Color* col = (Color*)(&pixel_col);
-	    ImageDrawPixel(&game_img, x, y, ColorBrightness(*col, scale / 4.f));
+	    color_brightness(*col, scale * 2.f);
+	    ImageDrawPixel(&game_img, x, y, *col);
 	}
 	v += 1.f / strip.height * img.height;
     }
 }
+
 
 void draw_walls2(Rectangle boundary) {
     Vector2 size = {boundary.width / num_cols, boundary.height / num_rows};
@@ -275,7 +289,6 @@ void draw_walls2(Rectangle boundary) {
 	for(int i = 0; i < player.far_plane; ++i) {
 	    int kind = 0;
 	    Vector2 p = next_point(prev, next, kind);
-	    Color c = colors[kind];
 	    prev = next;
 	    next = p;
 	    Vector2 cell = Vector2Add(next, Vector2Scale(ray_dir, epsilon * 100.f));
@@ -284,6 +297,7 @@ void draw_walls2(Rectangle boundary) {
 	    wall_tex cell_type = level[index(cell.x, cell.y)];
 	    if (cell_type) {
 		float distance = Vector2DotProduct(Vector2Subtract(next, player.position), player.direction) * 2.f;
+		Color c = colors[kind];
 		if (cell_type == FLAT) draw_strip_flat(x, 1.f / distance, c);
 		else if (cell_type == JOHANNDER) {
 		    Vector2 t = Vector2Subtract(next, cell);
@@ -364,8 +378,9 @@ void draw_walls() {
     }
 }
 
-void draw_ceiling() {
-    ImageDrawRectangle(&game_img, 0, 0, window_size.x, window_size.y -  window_size.y * (1.f/3.f), BLACK);
+
+void draw_floor() {
+    ImageDrawRectangleV(&game_img, {0.f, window_size.y / 2.f}, {window_size.x, window_size.y / 2.f}, floor_col);
 }
 
 
@@ -383,7 +398,7 @@ int main() {
 	//ClearBackground(bg_color);
 	ImageClearBackground(&game_img, bg_color);
 	controls();
-	//draw_ceiling();
+	draw_floor();
 	draw_map(map_boundary);
 	draw_walls2(game_boundary);
 	UpdateTexture(game_tex, game_img.data); 
