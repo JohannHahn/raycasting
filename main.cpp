@@ -24,13 +24,16 @@ Image map_img = GenImageColor(map_boundary.width, map_boundary.height, map_bg);
 Texture map_tex;
 Image game_img = GenImageColor(screen_size.x, screen_size.y, bg_color);
 Texture game_tex;
-Vector2 to_screen = {screen_size. x / num_cols, screen_size.y / num_rows};
+Vector2 to_screen_vec = {screen_size. x / num_cols, screen_size.y / num_rows};
 const char* wall_tex_path = "tileable10d.png";
 const char* johannder_path = "johannder.png";
+const char* sprite_path = "johannder.png";
 Image stone_wall_img = LoadImage(wall_tex_path);
 Image johannder_img = LoadImage(johannder_path);
-Vector2 light_pos = {0.f, 0.f};
 bool debug_map = false;
+
+Image sprite = LoadImage(sprite_path);
+Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
 
 
 enum side_kind {
@@ -43,9 +46,12 @@ enum wall_tex {
 
 Color colors[] = {BLACK, RED, GREEN, BLUE};
 
-constexpr bool float_equal(float a, float b) {
-    return std::abs(a - b) < epsilon;
-}
+
+struct Sprite {
+    Vector2 position; 
+    Image* img;
+    Texture* tex;
+};
 
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
@@ -70,6 +76,9 @@ struct Player {
 };
 Player player = {};
 
+constexpr bool float_equal(float a, float b) {
+    return std::abs(a - b) < epsilon;
+}
 
 constexpr u64 index(u64 x, u64 y) {
     return x + y * num_cols;
@@ -86,6 +95,10 @@ Rectangle squish_rec(Rectangle r, float factor) {
     float h = r.height * factor;
     float y = (r.height - h) * 0.5f;
     return {r.x, y, r.width, h};
+}
+
+Vector2 to_screen(Vector2 v) {
+    return Vector2Multiply(v, to_screen_vec);
 }
 
 Vector2 to_map(Vector2 v) {
@@ -200,16 +213,17 @@ void draw_strip_flat(u64 x, float scale, Color c) {
     ImageDrawRectangleRec(&game_img, strip, c);
 }
 
-void draw_strip(u64 x, u64 u, float scale, Image img) {
+void draw_strip(Vector2 pos, u64 x, u64 u, float scale, Image img) {
     scale = Clamp(scale, 0.f, 1.f);
-    Rectangle strip = squish_rec({(float)x, 0, 2.f, screen_size.y - 1}, scale);
-    if (u > img.width && "!") return;
+    Rectangle strip = squish_rec({(float)x, 0, 1.f, screen_size.y - 1}, scale);
+    if (u > img.width) return;
     float v = 0.f;
+    float dist_light = Vector2Length(Vector2Subtract(light_pos, pos));
     for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
 	if (v < img.height) {
 	    u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
 	    Color* col = (Color*)(&pixel_col);
-	    color_brightness(*col, scale * 2.f);
+	    color_brightness(*col, (1.f / dist_light + scale));
 	    ImageDrawPixel(&game_img, x, y, *col);
 	}
 	v += 1.f / strip.height * img.height;
@@ -249,7 +263,7 @@ void draw_walls(Rectangle boundary) {
 		    else if(float_equal(t.y, 0.f)) u = 1.f - t.x;
 		    else if(float_equal(t.x, 0.f)) u = t.y;
 		    else  u = 1.f - t.y;
-		    draw_strip(x, u * johannder_img.width, 1.f / distance, johannder_img);
+		    draw_strip(next, x, u * johannder_img.width, 1.f / distance, johannder_img);
 		}
 		else {
 		    Vector2 t = Vector2Subtract(next, cell);
@@ -258,7 +272,7 @@ void draw_walls(Rectangle boundary) {
 		    else if(float_equal(t.y, 0.f)) u = 1.f - t.x;
 		    else if(float_equal(t.x, 0.f)) u = t.y;
 		    else  u = 1.f - t.y;
-		    draw_strip(x, u * stone_wall_img.width, 1.f / distance, stone_wall_img);
+		    draw_strip(next, x, u * stone_wall_img.width, 1.f / distance, stone_wall_img);
 		}
 		//else draw_strip_flat(x, 1.f / distance, c);
 		break;
@@ -338,9 +352,9 @@ void draw_map(Rectangle boundary) {
 
 void draw_floor() {
     float scale = 1.f - EPSILON;
-    Color c = floor_col;
+    Color c = WHITE;
     for (float y = screen_size.y - 1; y >= screen_size.y / 2.f; --y) {
-	ImageDrawLineV(&game_img, {0, y}, {screen_size.x, y}, c);
+	ImageDrawLineV(&game_img, {0, y}, {screen_size.x, y}, ColorTint(floor_col, c));
 	color_brightness(c, scale);
     }
 }
@@ -350,12 +364,18 @@ void resize() {
     window_size.y = GetScreenHeight();
 }
 
+void draw_sprite(const Sprite& sprite) {
+    Rectangle dst = squish_rec(game_boundary, 0.5f);
+    Vector2 pos = Vector2Subtract(sprite.position, {sprite.tex->width / 2.f, sprite.tex->height / 2.f});
+    DrawTexturePro(*sprite.tex, {0.f, 0.f, (float)sprite.tex->width, (float)sprite.tex->height}, dst, to_screen(pos), 0.f, WHITE);
+}
 void render() {
     UpdateTexture(game_tex, game_img.data);
     DrawTexturePro(game_tex, game_boundary, {0.f, 0.f, window_size.x, window_size.y}, {0.f, 0.f}, 0, WHITE);
     UpdateTexture(map_tex, map_img.data);
     DrawTexturePro(map_tex, map_boundary, {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor}, {0.f, 0.f}, 0, WHITE);
 }
+
 
 int main() {
     InitWindow(window_size.x, window_size.y, window_title);
@@ -365,6 +385,8 @@ int main() {
     ImageFormat(&johannder_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
     map_tex = LoadTextureFromImage(map_img);
     game_tex = LoadTextureFromImage(game_img);
+    Texture johannder_tex = LoadTextureFromImage(johannder_img);
+    Sprite johannder_sprite = {.position = {0.f, 0.f}, .img = &johannder_img, .tex = &johannder_tex};
     while(!WindowShouldClose()) {
 	if (IsWindowResized()) resize();
 	BeginDrawing();
@@ -374,6 +396,7 @@ int main() {
 	draw_walls(game_boundary);
 	draw_map(map_boundary);
 	render();
+	draw_sprite(johannder_sprite);
 	EndDrawing();
     }
     CloseWindow();
