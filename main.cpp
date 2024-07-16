@@ -1,3 +1,20 @@
+constexpr long num_cols = 10;
+constexpr long num_rows = 10;
+enum wall_tex {
+    EMPTY, FLAT, STONE_WALL, JOHANNDER,
+};
+wall_tex level[num_rows * num_cols] = {
+    FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY,	    JOHANNDER, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY,	    JOHANNDER, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, JOHANNDER, JOHANNDER, JOHANNDER, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, STONE_WALL, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
+};
 #include <cassert>
 #include <iostream>
 #include <inttypes.h>
@@ -10,8 +27,8 @@ typedef uint32_t u32;
 Vector2 window_size = {900.f, 900.f}; 
 constexpr Vector2 screen_size = {600.f, 600.f}; 
 constexpr const char* window_title = "not doom";
-constexpr u64 num_cols = 10;
-constexpr u64 num_rows = 10;
+//constexpr u64 num_cols = 10;
+//constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
 constexpr float map_factor = 3.f;
 constexpr float epsilon = 0.00001f;
@@ -35,16 +52,12 @@ bool debug_map = false;
 Image sprite = LoadImage(sprite_path);
 Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
 
+Color colors[] = {BLACK, RED, GREEN, BLUE};
 
 enum side_kind {
     UNUSED, X, Y, PARALLEL 
 };
 
-enum wall_tex {
-    EMPTY, FLAT, STONE_WALL, JOHANNDER,
-};
-
-Color colors[] = {BLACK, RED, GREEN, BLUE};
 
 
 struct Sprite {
@@ -107,18 +120,6 @@ Vector2 to_map(Vector2 v) {
 
 int array[] = {JOHANNDER, JOHANNDER, JOHANNDER, JOHANNDER, JOHANNDER, JOHANNDER, JOHANNDER};
 Vector2 asdf = {JOHANNDER, JOHANNDER};
-wall_tex level[num_rows * num_cols] = {
-    FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY,	    JOHANNDER, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY,	    JOHANNDER, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, JOHANNDER, JOHANNDER, JOHANNDER, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, STONE_WALL, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
-};
 
 float snap(float n, float dn) {
     
@@ -365,9 +366,9 @@ void resize() {
 }
 
 void draw_sprite(const Sprite& sprite) {
-    Rectangle dst = squish_rec(game_boundary, 0.5f);
-    Vector2 pos = Vector2Subtract(sprite.position, {sprite.tex->width / 2.f, sprite.tex->height / 2.f});
-    DrawTexturePro(*sprite.tex, {0.f, 0.f, (float)sprite.tex->width, (float)sprite.tex->height}, dst, to_screen(pos), 0.f, WHITE);
+    Rectangle dst = squish_rec(game_boundary, 1.f);
+    Vector2 pos = Vector2Subtract({dst.x, dst.y}, {dst.width / 2.f, dst.height / 2.f});
+    DrawTexturePro(*sprite.tex, {0.f, 0.f, (float)sprite.tex->width, (float)sprite.tex->height}, dst, pos, 0.f, WHITE);
 }
 void render() {
     UpdateTexture(game_tex, game_img.data);
@@ -395,7 +396,7 @@ int main() {
 	draw_floor();
 	draw_walls(game_boundary);
 	draw_map(map_boundary);
-	render();
+	//render();
 	draw_sprite(johannder_sprite);
 	EndDrawing();
     }
