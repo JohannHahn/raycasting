@@ -366,9 +366,15 @@ void resize() {
 }
 
 void draw_sprite(const Sprite& sprite) {
-    Rectangle dst = squish_rec(game_boundary, 1.f);
+    Vector2 player_to_sprite = Vector2Subtract(sprite.position, player.position);
+    float distance = Vector2Length(player_to_sprite);
+    Rectangle dst = squish_rec(game_boundary, 1.f / distance);
     Vector2 pos = Vector2Subtract({dst.x, dst.y}, {dst.width / 2.f, dst.height / 2.f});
-    DrawTexturePro(*sprite.tex, {0.f, 0.f, (float)sprite.tex->width, (float)sprite.tex->height}, dst, pos, 0.f, WHITE);
+    Vector2 collision_point;
+    if (CheckCollisionLines(player.position, sprite.position, player.fov_left(), player.fov_right(), &collision_point)) {
+	std::cout << "collision_point = " << collision_point.x << ", " << collision_point.y << "\n";
+	DrawTexturePro(*sprite.tex, {0.f, 0.f, (float)sprite.tex->width, (float)sprite.tex->height}, dst, pos, 0.f, WHITE);
+    }
 }
 void render() {
     UpdateTexture(game_tex, game_img.data);
@@ -387,7 +393,7 @@ int main() {
     map_tex = LoadTextureFromImage(map_img);
     game_tex = LoadTextureFromImage(game_img);
     Texture johannder_tex = LoadTextureFromImage(johannder_img);
-    Sprite johannder_sprite = {.position = {0.f, 0.f}, .img = &johannder_img, .tex = &johannder_tex};
+    Sprite johannder_sprite = {.position = {10.f, 10.f}, .img = &johannder_img, .tex = &johannder_tex};
     while(!WindowShouldClose()) {
 	if (IsWindowResized()) resize();
 	BeginDrawing();
@@ -396,7 +402,7 @@ int main() {
 	draw_floor();
 	draw_walls(game_boundary);
 	draw_map(map_boundary);
-	//render();
+	render();
 	draw_sprite(johannder_sprite);
 	EndDrawing();
     }
