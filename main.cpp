@@ -110,6 +110,14 @@ Rectangle squish_rec(Rectangle r, float factor) {
     return {r.x, y, r.width, h};
 }
 
+Rectangle scale_rec(Rectangle r, float factor) { 
+    float h = r.height * factor;
+    float y = (r.height - h) * 0.5f;
+    float w = r.width * factor;
+    float x = (r.width - w) * 0.5f;
+    return {x, y, w, h};
+}
+
 Vector2 to_screen(Vector2 v) {
     return Vector2Multiply(v, to_screen_vec);
 }
@@ -366,14 +374,18 @@ void resize() {
 }
 
 void draw_sprite(const Sprite& sprite) {
-    Vector2 player_to_sprite = Vector2Subtract(sprite.position, player.position);
-    float distance = Vector2Length(player_to_sprite);
-    Rectangle dst = squish_rec(game_boundary, 1.f / distance);
-    Vector2 pos = Vector2Subtract({dst.x, dst.y}, {dst.width / 2.f, dst.height / 2.f});
     Vector2 collision_point;
     if (CheckCollisionLines(player.position, sprite.position, player.fov_left(), player.fov_right(), &collision_point)) {
+	Vector2 player_to_sprite = Vector2Subtract(sprite.position, player.position);
+	float distance = Vector2Length(player_to_sprite);
+	Rectangle dst = squish_rec(game_boundary, 1.f / distance);
+	float x = Vector2Length(Vector2Subtract(collision_point, player.fov_left()));
+	x /= Vector2Length(Vector2Subtract(player.fov_right(), player.fov_left()));
+	x *= screen_size.x;
+	dst.x = x;
+	dst.y = screen_size.y / 2.f + dst.height / 2.f;
 	std::cout << "collision_point = " << collision_point.x << ", " << collision_point.y << "\n";
-	DrawTexturePro(*sprite.tex, {0.f, 0.f, (float)sprite.tex->width, (float)sprite.tex->height}, dst, pos, 0.f, WHITE);
+	DrawTexturePro(*sprite.tex, {0.f, 0.f, (float)sprite.tex->width, (float)sprite.tex->height}, dst, {0.f, 0.f}, 0.f, WHITE);
     }
 }
 void render() {
@@ -393,7 +405,7 @@ int main() {
     map_tex = LoadTextureFromImage(map_img);
     game_tex = LoadTextureFromImage(game_img);
     Texture johannder_tex = LoadTextureFromImage(johannder_img);
-    Sprite johannder_sprite = {.position = {10.f, 10.f}, .img = &johannder_img, .tex = &johannder_tex};
+    Sprite johannder_sprite = {.position = {0.f, 0.f}, .img = &johannder_img, .tex = &johannder_tex};
     while(!WindowShouldClose()) {
 	if (IsWindowResized()) resize();
 	BeginDrawing();
