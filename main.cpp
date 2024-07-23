@@ -378,12 +378,12 @@ void draw_sprite(const Sprite& sprite) {
     if (CheckCollisionLines(player.position, sprite.position, player.fov_left(), player.fov_right(), &collision_point)) {
 	Vector2 player_to_sprite = Vector2Subtract(sprite.position, player.position);
 	float distance = Vector2Length(player_to_sprite);
-	Rectangle dst = squish_rec(game_boundary, 1.f / distance);
+	Rectangle dst = scale_rec(game_boundary, 1.f / distance);
 	float x = Vector2Length(Vector2Subtract(collision_point, player.fov_left()));
 	x /= Vector2Length(Vector2Subtract(player.fov_right(), player.fov_left()));
 	x *= screen_size.x;
-	dst.x = x;
-	dst.y = screen_size.y / 2.f + dst.height / 2.f;
+	dst.x = x - (dst.width / 2.f);
+	dst.y = (screen_size.y / 2.f) + (dst.height / 2.f);
 	std::cout << "collision_point = " << collision_point.x << ", " << collision_point.y << "\n";
 	DrawTexturePro(*sprite.tex, {0.f, 0.f, (float)sprite.tex->width, (float)sprite.tex->height}, dst, {0.f, 0.f}, 0.f, WHITE);
     }
