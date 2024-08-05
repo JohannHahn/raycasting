@@ -62,6 +62,7 @@ enum side_kind {
 
 struct Sprite {
     Vector2 position; 
+    Vector2 world_size = {0.5f, 0.5f};
     Image* img;
     Texture* tex;
 };
@@ -368,12 +369,16 @@ void resize() {
 void draw_sprite(const Sprite& sprite) {
     Vector2 player_to_sprite = Vector2Subtract(sprite.position, player.position);
     float distance = Vector2Length(player_to_sprite);
+    Vector2 camera_plane_dir = Vector2Normalize(Vector2Subtract(player.fov_right(), player.fov_left())); 
+    Vector2 sprite_left = Vector2Subtract(sprite.position, (Vector2Scale(camera_plane_dir, sprite.world_size.x)));
+    Vector2 sprite_right = Vector2Add(sprite.position, (Vector2Scale(camera_plane_dir, sprite.world_size.x)));
+    
     Rectangle dst = squish_rec(game_boundary, 1.f / distance);
     Vector2 pos = Vector2Subtract({dst.x, dst.y}, {dst.width / 2.f, dst.height / 2.f});
-    Vector2 collision_point;
-    if (CheckCollisionLines(player.position, sprite.position, player.fov_left(), player.fov_right(), &collision_point)) {
-	std::cout << "collision_point = " << collision_point.x << ", " << collision_point.y << "\n";
-	DrawTexturePro(*sprite.tex, {0.f, 0.f, (float)sprite.tex->width, (float)sprite.tex->height}, dst, pos, 0.f, WHITE);
+    Vector2 collision_left, collision_right;
+    if (CheckCollisionLines(player.position, sprite_left, player.fov_left(), player.fov_right(), &collision_left) &&
+	CheckCollisionLines(player.position, sprite_right, player.fov_left(), player.fov_right(), &collision_right) ) {
+	DrawLineV(to_screen(collision_left), to_screen(collision_right), MAGENTA);
     }
 }
 void render() {
