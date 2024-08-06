@@ -62,7 +62,7 @@ enum side_kind {
 
 struct Sprite {
     Vector2 position; 
-    Vector2 world_size = {0.5f, 0.5f};
+    Vector2 world_size = {0.9f, 0.9f};
     Image* img;
     Texture* tex;
 };
@@ -383,6 +383,7 @@ void resize() {
 
 void draw_sprite(const Sprite& sprite) {
     float distance = Vector2DotProduct(Vector2Subtract(sprite.position, player.position), player.direction);
+    float scale = sprite.world_size.x / distance;
     Vector2 fov_plane = Vector2Subtract(player.fov_right(), player.fov_left());
     Vector2 camera_plane_dir = Vector2Normalize(fov_plane); 
     Vector2 sprite_left = Vector2Subtract(sprite.position, Vector2Scale(camera_plane_dir, sprite.world_size.x));
@@ -392,19 +393,27 @@ void draw_sprite(const Sprite& sprite) {
     bool left_visible = CheckCollisionLines(player.position, sprite_left, player.fov_left(), player.fov_right(), &collision_left); 
     bool right_visible = CheckCollisionLines(player.position, sprite_right, player.fov_left(), player.fov_right(), &collision_right);
     if (!left_visible && !right_visible) return;
-    float x_start = Vector2Length(Vector2Subtract(collision_left, player.fov_left())) / Vector2Length(fov_plane) * screen_size.x;
-    float x_end = Vector2Length(Vector2Subtract(collision_right, player.fov_left())) / Vector2Length(fov_plane) * screen_size.x;
-    u64 u = 0; 
-    u64 step = johannder_img.width / (x_end - x_start); 
+
+    float x_start = Vector2Length(Vector2Subtract(collision_left, player.fov_left())) / Vector2Length(fov_plane);
+    float x_end = Vector2Length(Vector2Subtract(collision_right, player.fov_left())) / Vector2Length(fov_plane);
+
     if (!right_visible) {
-	x_end = screen_size.x - 1;
+	x_end = 1.f;
     }
-    if (!left_visible) {
-	x_start = 0;
+    else if (!left_visible) {
+	x_start = 0.f;
     }
-    if (x_end < x_start) return;
-    float scale = sprite.world_size.x / distance;
-    for(u64 x = x_start; x <= x_end; ++x) {
+    if (x_end < x_start) {
+	std::cout << "x_end < x_start, x_end = " << x_end << "\n";
+    }
+
+    float full_length = 1.f * scale;
+    float visible_length = (x_end - x_start);
+    std::cout << "full length = " << full_length << ", visible length = " << visible_length << "\n";
+    float u = full_length - visible_length; 
+    float step = (johannder_img.width * visible_length) / ((x_end - x_start) * screen_size.x); 
+
+    for(u64 x = x_start * screen_size.x; x <= x_end * screen_size.x; ++x) {
 	if (z_buffer[x] > distance) {
 	    draw_strip(sprite.position, x, u, scale, johannder_img);
 	}
@@ -430,7 +439,8 @@ int main() {
     map_tex = LoadTextureFromImage(map_img);
     game_tex = LoadTextureFromImage(game_img);
     Texture johannder_tex = LoadTextureFromImage(johannder_img);
-    Sprite johannder_sprite = {.position = {1.f, 5.f}, .img = &johannder_img, .tex = &johannder_tex};
+    player.direction = Vector2Normalize({1.f, 1.f});
+    Sprite johannder_sprite = {.position = {7.f, 7.f}, .img = &johannder_img, .tex = &johannder_tex};
     while(!WindowShouldClose()) {
 	if (IsWindowResized()) resize();
 	BeginDrawing();
