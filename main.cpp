@@ -49,8 +49,6 @@ const char* sprite_path = "johannder.png";
 Image stone_wall_img = LoadImage(wall_tex_path);
 Image johannder_img = LoadImage(johannder_path);
 bool debug_map = false;
-
-Image sprite = LoadImage(sprite_path);
 Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
 
 Color colors[] = {BLACK, RED, GREEN, BLUE};
@@ -432,7 +430,7 @@ int main() {
     map_tex = LoadTextureFromImage(map_img);
     game_tex = LoadTextureFromImage(game_img);
     Texture johannder_tex = LoadTextureFromImage(johannder_img);
-    Sprite johannder_sprite = {.position = {5.f, 5.f}, .img = &johannder_img, .tex = &johannder_tex};
+    Sprite johannder_sprite = {.position = {1.f, 5.f}, .img = &johannder_img, .tex = &johannder_tex};
     while(!WindowShouldClose()) {
 	if (IsWindowResized()) resize();
 	BeginDrawing();
