@@ -25,6 +25,7 @@ wall_tex level[num_rows * num_cols] = {
 typedef uint64_t u64;
 typedef uint32_t u32;
 
+float sprite_z = 0.f;
 Vector2 window_size = {900.f, 900.f}; 
 constexpr Vector2 screen_size = {600.f, 600.f}; 
 constexpr const char* window_title = "not doom";
@@ -52,7 +53,7 @@ bool debug_map = false;
 Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
 
 Color colors[] = {BLACK, RED, GREEN, BLUE};
-float z_buffer[(u64)screen_size.x] = {num_cols * num_rows};
+float depth_buffer[(u64)screen_size.x] = {num_cols * num_rows};
 
 enum side_kind {
     UNUSED, X, Y, PARALLEL 
@@ -62,7 +63,8 @@ enum side_kind {
 
 struct Sprite {
     Vector2 position; 
-    Vector2 world_size = {0.9f, 0.9f};
+    Vector2 size = {0.9f, 0.9f};
+    float z = 0.f;
     Image* img;
     Texture* tex;
 };
@@ -111,7 +113,7 @@ void color_brightness(Color& c, float scale) {
 
 Rectangle squish_rec(Rectangle r, float factor) {
     float h = r.height * factor;
-    float y = (r.height - h) * 0.5f;
+    float y = r.y + (r.height - h) * 0.5f;
     return {r.x, y, r.width, h};
 }
 
@@ -187,6 +189,11 @@ bool inside_wall(Vector2 p) {
 
 void controls() {
     float dt = GetFrameTime();
+    if (IsKeyDown(KEY_U)) {
+	std::cout << sprite_z << "\n";
+	sprite_z++; 
+    } 
+    if (IsKeyDown(KEY_J)) sprite_z--; 
     Vector2 new_pos = player.position;
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
 	new_pos = Vector2Subtract(player.position, Vector2Scale(player.direction, player.speed * dt));
@@ -227,9 +234,26 @@ void draw_strip_flat(u64 x, float scale, Color c) {
     ImageDrawRectangleRec(&game_img, strip, c);
 }
 
-void draw_strip(Vector2 pos, u64 x, u64 u, float scale, Image img) {
+void draw_strip_sprite(Vector2 pos, float x, float y, u64 u, float scale, Image img) {
     scale = Clamp(scale, 0.f, 1.f);
-    Rectangle strip = squish_rec({(float)x, 0, 1.f, screen_size.y - 1}, scale);
+    Rectangle strip = squish_rec({(float)x, y, 1.f, screen_size.y - 1}, scale);
+    if (u > img.width) return;
+    float v = 0.f;
+    float dist_light = Vector2Length(Vector2Subtract(light_pos, pos));
+    for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
+	if (v < img.height && y * scale > 0.5f) {
+	    u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
+	    Color* col = (Color*)(&pixel_col);
+	    color_brightness(*col, (1.f / dist_light + scale));
+	    ImageDrawPixel(&game_img, x, y, *col);
+	}
+	v += 1.f / strip.height * img.height;
+    }
+}
+
+void draw_strip(Vector2 pos, float x, float y, u64 u, float scale, Image img) {
+    scale = Clamp(scale, 0.f, 1.f);
+    Rectangle strip = squish_rec({(float)x, y, 1.f, screen_size.y - 1}, scale);
     if (u > img.width) return;
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(light_pos, pos));
@@ -278,8 +302,8 @@ void draw_walls(Rectangle boundary) {
 		    else if(float_equal(t.y, 0.f)) u = 1.f - t.x;
 		    else if(float_equal(t.x, 0.f)) u = t.y;
 		    else  u = 1.f - t.y;
-		    draw_strip(next, x, u * johannder_img.width, 1.f / distance, johannder_img);
-		    z_buffer[x] = Vector2Length(Vector2Subtract(next, player.position));
+		    draw_strip(next, x, 0.f, u * johannder_img.width, 1.f / distance, johannder_img);
+		    depth_buffer[x] = Vector2Length(Vector2Subtract(next, player.position));
 		}
 		else {
 		    Vector2 t = Vector2Subtract(next, cell);
@@ -288,8 +312,8 @@ void draw_walls(Rectangle boundary) {
 		    else if(float_equal(t.y, 0.f)) u = 1.f - t.x;
 		    else if(float_equal(t.x, 0.f)) u = t.y;
 		    else  u = 1.f - t.y;
-		    draw_strip(next, x, u * stone_wall_img.width, 1.f / distance, stone_wall_img);
-		    z_buffer[x] = Vector2Length(Vector2Subtract(next, player.position));
+		    draw_strip(next, x, 0.f, u * stone_wall_img.width, 1.f / distance, stone_wall_img);
+		    depth_buffer[x] = Vector2Length(Vector2Subtract(next, player.position));
 		}
 		//else draw_strip_flat(x, 1.f / distance, c);
 		break;
@@ -383,39 +407,39 @@ void resize() {
 
 void draw_sprite(const Sprite& sprite) {
     float distance = Vector2DotProduct(Vector2Subtract(sprite.position, player.position), player.direction);
-    float scale = sprite.world_size.x / distance;
+    float scale = sprite.size.x / distance;
     Vector2 fov_plane = Vector2Subtract(player.fov_right(), player.fov_left());
     Vector2 camera_plane_dir = Vector2Normalize(fov_plane); 
-    Vector2 sprite_left = Vector2Subtract(sprite.position, Vector2Scale(camera_plane_dir, sprite.world_size.x));
-    Vector2 sprite_right = Vector2Add(sprite.position, Vector2Scale(camera_plane_dir, sprite.world_size.x));
+    Vector2 sprite_left = Vector2Subtract(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x));
+    Vector2 sprite_right = Vector2Add(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x));
     
     Vector2 collision_left, collision_right;
     bool left_visible = CheckCollisionLines(player.position, sprite_left, player.fov_left(), player.fov_right(), &collision_left); 
     bool right_visible = CheckCollisionLines(player.position, sprite_right, player.fov_left(), player.fov_right(), &collision_right);
     if (!left_visible && !right_visible) return;
 
-    float x_start = Vector2Length(Vector2Subtract(collision_left, player.fov_left())) / Vector2Length(fov_plane);
-    float x_end = Vector2Length(Vector2Subtract(collision_right, player.fov_left())) / Vector2Length(fov_plane);
+    float x_start = Vector2Length(Vector2Subtract(collision_left, player.fov_left())) / Vector2Length(fov_plane) * screen_size.x;
+    float x_end = Vector2Length(Vector2Subtract(collision_right, player.fov_left())) / Vector2Length(fov_plane) * screen_size.x;
 
     if (!right_visible) {
-	x_end = 1.f;
+	x_end = screen_size.x - 1;
     }
     else if (!left_visible) {
 	x_start = 0.f;
     }
     if (x_end < x_start) {
 	std::cout << "x_end < x_start, x_end = " << x_end << "\n";
+	return;
     }
 
-    float full_length = 1.f * scale;
+    float full_length = scale * screen_size.x;
     float visible_length = (x_end - x_start);
-    std::cout << "full length = " << full_length << ", visible length = " << visible_length << "\n";
-    float u = full_length - visible_length; 
-    float step = (johannder_img.width * visible_length) / ((x_end - x_start) * screen_size.x); 
-
-    for(u64 x = x_start * screen_size.x; x <= x_end * screen_size.x; ++x) {
-	if (z_buffer[x] > distance) {
-	    draw_strip(sprite.position, x, u, scale, johannder_img);
+    float step = johannder_img.width / (x_end - x_start);
+    step = (johannder_img.width * (visible_length / full_length)) / (x_end - x_start);
+    float u = right_visible ? step * (full_length - visible_length) : 0.f; 
+    for(u64 x = x_start; x <= x_end; ++x) {
+	if (depth_buffer[x] > distance) {
+	    draw_strip_sprite(sprite.position, x, sprite_z, u, scale, johannder_img);
 	}
 	u += step;
     }
@@ -426,7 +450,7 @@ void render() {
     DrawTexturePro(game_tex, game_boundary, {0.f, 0.f, window_size.x, window_size.y}, {0.f, 0.f}, 0, WHITE);
     UpdateTexture(map_tex, map_img.data);
     DrawTexturePro(map_tex, map_boundary, {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor}, {0.f, 0.f}, 0, WHITE);
-    memset(&z_buffer[0], player.far_plane, sizeof(float) * screen_size.x);
+    memset(&depth_buffer[0], player.far_plane, sizeof(float) * screen_size.x);
 }
 
 
