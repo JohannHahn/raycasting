@@ -25,7 +25,6 @@ wall_tex level[num_rows * num_cols] = {
 typedef uint64_t u64;
 typedef uint32_t u32;
 
-float sprite_z = 0.f;
 Vector2 window_size = {900.f, 900.f}; 
 constexpr Vector2 screen_size = {600.f, 600.f}; 
 constexpr const char* window_title = "not doom";
@@ -51,9 +50,10 @@ Image stone_wall_img = LoadImage(wall_tex_path);
 Image johannder_img = LoadImage(johannder_path);
 bool debug_map = false;
 Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
+Texture johannder_tex;
 
 Color colors[] = {BLACK, RED, GREEN, BLUE};
-float depth_buffer[(u64)screen_size.x] = {num_cols * num_rows};
+float depth_buffer[(u64)screen_size.x * (u64)screen_size.y] = {num_cols * num_rows};
 
 enum side_kind {
     UNUSED, X, Y, PARALLEL 
@@ -68,6 +68,7 @@ struct Sprite {
     Image* img;
     Texture* tex;
 };
+Sprite johannder_sprite = {.position = {7.f, 7.f}, .img = &johannder_img, .tex = &johannder_tex};
 
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
@@ -190,10 +191,9 @@ bool inside_wall(Vector2 p) {
 void controls() {
     float dt = GetFrameTime();
     if (IsKeyDown(KEY_U)) {
-	std::cout << sprite_z << "\n";
-	sprite_z++; 
+	johannder_sprite.z++; 
     } 
-    if (IsKeyDown(KEY_J)) sprite_z--; 
+    if (IsKeyDown(KEY_J)) johannder_sprite.z--; 
     Vector2 new_pos = player.position;
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
 	new_pos = Vector2Subtract(player.position, Vector2Scale(player.direction, player.speed * dt));
@@ -234,35 +234,42 @@ void draw_strip_flat(u64 x, float scale, Color c) {
     ImageDrawRectangleRec(&game_img, strip, c);
 }
 
-void draw_strip_sprite(Vector2 pos, float x, float y, u64 u, float scale, Image img) {
+void draw_strip_sprite(Vector2 pos, float x, float top, u64 u, float scale, Image img) {
     scale = Clamp(scale, 0.f, 1.f);
-    Rectangle strip = squish_rec({(float)x, y, 1.f, screen_size.y - 1}, scale);
+    Rectangle strip = squish_rec({(float)x, top, 1.f, screen_size.y - 1}, scale);
     if (u > img.width) return;
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(light_pos, pos));
+    float depth = Vector2Length(Vector2Subtract(pos, player.position));
     for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
-	if (v < img.height && y * scale > 0.5f) {
-	    u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
-	    Color* col = (Color*)(&pixel_col);
-	    color_brightness(*col, (1.f / dist_light + scale));
-	    ImageDrawPixel(&game_img, x, y, *col);
+	if (v < img.height) {
+		u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
+		Color* col = (Color*)(&pixel_col);
+		if(depth > depth_buffer[index(x,y)]) {
+		*col = ColorFromHSV(0.1 * depth / player.far_plane, 1.f, 1.f);
+	    }
+		color_brightness(*col, (1.f / dist_light + scale));
+		ImageDrawPixel(&game_img, x, y, *col);
+		depth_buffer[index(x,y)] = depth;
 	}
 	v += 1.f / strip.height * img.height;
     }
 }
 
-void draw_strip(Vector2 pos, float x, float y, u64 u, float scale, Image img) {
+void draw_strip(Vector2 pos, float x, float top, u64 u, float scale, Image img) {
     scale = Clamp(scale, 0.f, 1.f);
-    Rectangle strip = squish_rec({(float)x, y, 1.f, screen_size.y - 1}, scale);
+    Rectangle strip = squish_rec({(float)x, top, 1.f, screen_size.y - 1}, scale);
     if (u > img.width) return;
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(light_pos, pos));
+    float depth = Vector2Length(Vector2Subtract(pos, player.position));
     for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
 	if (v < img.height) {
 	    u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
 	    Color* col = (Color*)(&pixel_col);
 	    color_brightness(*col, (1.f / dist_light + scale));
 	    ImageDrawPixel(&game_img, x, y, *col);
+	    depth_buffer[index(x,y)] = depth;
 	}
 	v += 1.f / strip.height * img.height;
     }
@@ -303,7 +310,6 @@ void draw_walls(Rectangle boundary) {
 		    else if(float_equal(t.x, 0.f)) u = t.y;
 		    else  u = 1.f - t.y;
 		    draw_strip(next, x, 0.f, u * johannder_img.width, 1.f / distance, johannder_img);
-		    depth_buffer[x] = Vector2Length(Vector2Subtract(next, player.position));
 		}
 		else {
 		    Vector2 t = Vector2Subtract(next, cell);
@@ -313,7 +319,6 @@ void draw_walls(Rectangle boundary) {
 		    else if(float_equal(t.x, 0.f)) u = t.y;
 		    else  u = 1.f - t.y;
 		    draw_strip(next, x, 0.f, u * stone_wall_img.width, 1.f / distance, stone_wall_img);
-		    depth_buffer[x] = Vector2Length(Vector2Subtract(next, player.position));
 		}
 		//else draw_strip_flat(x, 1.f / distance, c);
 		break;
@@ -434,13 +439,10 @@ void draw_sprite(const Sprite& sprite) {
 
     float full_length = scale * screen_size.x;
     float visible_length = (x_end - x_start);
-    float step = johannder_img.width / (x_end - x_start);
-    step = (johannder_img.width * (visible_length / full_length)) / (x_end - x_start);
+    float step = (johannder_img.width * (visible_length / full_length)) / (x_end - x_start);
     float u = right_visible ? step * (full_length - visible_length) : 0.f; 
     for(u64 x = x_start; x <= x_end; ++x) {
-	if (depth_buffer[x] > distance) {
-	    draw_strip_sprite(sprite.position, x, sprite_z, u, scale, johannder_img);
-	}
+	draw_strip_sprite(sprite.position, x, sprite.z, u, scale, johannder_img);
 	u += step;
     }
 }
@@ -450,7 +452,7 @@ void render() {
     DrawTexturePro(game_tex, game_boundary, {0.f, 0.f, window_size.x, window_size.y}, {0.f, 0.f}, 0, WHITE);
     UpdateTexture(map_tex, map_img.data);
     DrawTexturePro(map_tex, map_boundary, {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor}, {0.f, 0.f}, 0, WHITE);
-    memset(&depth_buffer[0], player.far_plane, sizeof(float) * screen_size.x);
+    memset(&depth_buffer[0], player.far_plane, sizeof(float) * screen_size.x * screen_size.y);
 }
 
 
@@ -462,9 +464,8 @@ int main() {
     ImageFormat(&johannder_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
     map_tex = LoadTextureFromImage(map_img);
     game_tex = LoadTextureFromImage(game_img);
-    Texture johannder_tex = LoadTextureFromImage(johannder_img);
     player.direction = Vector2Normalize({1.f, 1.f});
-    Sprite johannder_sprite = {.position = {7.f, 7.f}, .img = &johannder_img, .tex = &johannder_tex};
+    johannder_tex = LoadTextureFromImage(johannder_img);
     while(!WindowShouldClose()) {
 	if (IsWindowResized()) resize();
 	BeginDrawing();
