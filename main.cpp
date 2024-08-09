@@ -33,6 +33,7 @@ constexpr const char* window_title = "not doom";
 constexpr float fps = 60.f;
 constexpr float map_factor = 3.f;
 constexpr float epsilon = 0.00001f;
+constexpr float max_depth = 999999.f;
 Rectangle map_boundary = {0.f, 0.f, screen_size.x / map_factor, screen_size.y / map_factor};
 Rectangle game_boundary = {0.f, 0.f, screen_size.x, screen_size.y};
 Color bg_color = SKYBLUE;
@@ -101,8 +102,8 @@ constexpr bool color_equal(Color c1, Color c2) {
     return (c1.a == c2.a && c1.r == c2.r && c1.g == c2.g && c1.b == c2.b);
 }
 
-constexpr u64 index(u64 x, u64 y) {
-    return x + y * num_cols;
+constexpr u64 index(u64 x, u64 y, u64 width) {
+    return x + y * width;
 }
 
 void color_brightness(Color& c, float scale) {
@@ -114,7 +115,7 @@ void color_brightness(Color& c, float scale) {
 
 Rectangle squish_rec(Rectangle r, float factor) {
     float h = r.height * factor;
-    float y = r.y + (r.height - h) * 0.5f;
+    float y = (r.height - h) * 0.5f - (r.y * factor);
     return {r.x, y, r.width, h};
 }
 
@@ -185,7 +186,7 @@ Vector2 next_point(Vector2 p, Vector2 p2, int& out) {
 
 
 bool inside_wall(Vector2 p) {
-    return level[index(p.x, p.y)];
+    return level[index(p.x, p.y, num_cols)];
 }
 
 void controls() {
@@ -241,16 +242,17 @@ void draw_strip_sprite(Vector2 pos, float x, float top, u64 u, float scale, Imag
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(light_pos, pos));
     float depth = Vector2Length(Vector2Subtract(pos, player.position));
-    for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
-	if (v < img.height) {
+    for (u64 y = strip.y; y < strip.y + strip.height; ++y) {
+	if (v >= img.height) break;
+	if(y < 0) continue;
+	u64 idx = index(x,y, screen_size.x);
+	if (idx >= screen_size.x * screen_size.y) continue;
+	if (depth < depth_buffer[idx]) {
 		u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
 		Color* col = (Color*)(&pixel_col);
-		if(depth > depth_buffer[index(x,y)]) {
-		*col = ColorFromHSV(0.1 * depth / player.far_plane, 1.f, 1.f);
-	    }
 		color_brightness(*col, (1.f / dist_light + scale));
 		ImageDrawPixel(&game_img, x, y, *col);
-		depth_buffer[index(x,y)] = depth;
+		depth_buffer[index(x, y, screen_size.x)] = depth;
 	}
 	v += 1.f / strip.height * img.height;
     }
@@ -269,7 +271,7 @@ void draw_strip(Vector2 pos, float x, float top, u64 u, float scale, Image img) 
 	    Color* col = (Color*)(&pixel_col);
 	    color_brightness(*col, (1.f / dist_light + scale));
 	    ImageDrawPixel(&game_img, x, y, *col);
-	    depth_buffer[index(x,y)] = depth;
+	    depth_buffer[index(x, y, screen_size.x)] = depth;
 	}
 	v += 1.f / strip.height * img.height;
     }
@@ -298,7 +300,7 @@ void draw_walls(Rectangle boundary) {
 	    cell.x = floor(cell.x);
 	    cell.y = floor(cell.y);
 	    if (cell.x >= num_cols || cell.y >= num_rows) continue;
-	    wall_tex cell_type = level[index(cell.x, cell.y)];
+	    wall_tex cell_type = level[index(cell.x, cell.y, num_cols)];
 	    if (cell_type) {
 		float distance = Vector2DotProduct(Vector2Subtract(next, player.position), player.direction) * 2.f;
 		Color c = colors[kind];
@@ -341,7 +343,7 @@ void draw_map(Rectangle boundary) {
     }
     for(u64 y = 0; y < num_rows; ++y) {
 	for(u64 x = 0; x < num_cols; ++x) {
-	    if(level[index(x, y)]) {
+	    if(level[index(x, y, num_cols)]) {
 		ImageDrawRectangleV(&map_img, {x * size.x, y * size.y}, size, ColorAlpha(WHITE, 0.5f));
 	    }
 	}
@@ -382,7 +384,7 @@ void draw_map(Rectangle boundary) {
 		Rectangle r = {cell_map.x, cell_map.y, size.x, size.y};
 		ImageDrawRectangleLines(&map_img, r, 2, RED);
 		ImageDrawLineV(&map_img, to_map(next), cell_map, YELLOW);
-		if (level[index(cell.x, cell.y)]) {
+		if (level[index(cell.x, cell.y, num_cols)]) {
 		    ImageDrawCircleV(&map_img, to_map(next), 10, MAGENTA);
 		    ImageDrawCircleV(&map_img, to_map({(float)cell.x, (float)cell.y}), 10, RED);
 		    break;
@@ -412,6 +414,7 @@ void resize() {
 
 void draw_sprite(const Sprite& sprite) {
     float distance = Vector2DotProduct(Vector2Subtract(sprite.position, player.position), player.direction);
+    if (distance >= player.far_plane) return;
     float scale = sprite.size.x / distance;
     Vector2 fov_plane = Vector2Subtract(player.fov_right(), player.fov_left());
     Vector2 camera_plane_dir = Vector2Normalize(fov_plane); 
@@ -447,12 +450,18 @@ void draw_sprite(const Sprite& sprite) {
     }
 }
 
+void fill_depth_buffer(float val) {
+   for(float& n: depth_buffer) {
+	n = val;
+    } 
+}
+
 void render() {
     UpdateTexture(game_tex, game_img.data);
     DrawTexturePro(game_tex, game_boundary, {0.f, 0.f, window_size.x, window_size.y}, {0.f, 0.f}, 0, WHITE);
     UpdateTexture(map_tex, map_img.data);
     DrawTexturePro(map_tex, map_boundary, {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor}, {0.f, 0.f}, 0, WHITE);
-    memset(&depth_buffer[0], player.far_plane, sizeof(float) * screen_size.x * screen_size.y);
+    fill_depth_buffer(max_depth);
 }
 
 
