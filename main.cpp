@@ -24,6 +24,7 @@ wall_tex level[num_rows * num_cols] = {
 
 typedef uint64_t u64;
 typedef uint32_t u32;
+bool debug_print = false;
 
 Vector2 window_size = {900.f, 900.f}; 
 constexpr Vector2 screen_size = {600.f, 600.f}; 
@@ -194,6 +195,9 @@ void controls() {
     if (IsKeyDown(KEY_U)) {
 	johannder_sprite.z++; 
     } 
+    if (IsKeyPressed(KEY_P)) {
+	debug_print = true;
+    }
     if (IsKeyDown(KEY_J)) johannder_sprite.z--; 
     Vector2 new_pos = player.position;
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
@@ -238,15 +242,18 @@ void draw_strip_flat(u64 x, float scale, Color c) {
 void draw_strip_sprite(Vector2 pos, float x, float top, u64 u, float scale, Image img) {
     scale = Clamp(scale, 0.f, 1.f);
     Rectangle strip = squish_rec({(float)x, top, 1.f, screen_size.y - 1}, scale);
+    if (debug_print) {
+	std::cout << "u = " << u << "\n";
+	debug_print = false;
+    }
     if (u > img.width) return;
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(light_pos, pos));
     float depth = Vector2Length(Vector2Subtract(pos, player.position));
     for (u64 y = strip.y; y < strip.y + strip.height; ++y) {
-	if (v >= img.height) break;
-	if(y < 0) continue;
+	if (v >= img.height) v = img.height - 1;
+	if(y < 0) y = 0;
 	u64 idx = index(x,y, screen_size.x);
-	if (idx >= screen_size.x * screen_size.y) continue;
 	if (depth < depth_buffer[idx]) {
 		u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
 		Color* col = (Color*)(&pixel_col);
