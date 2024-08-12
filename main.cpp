@@ -14,7 +14,7 @@ wall_tex level[num_rows * num_cols] = {
     FLAT, STONE_WALL, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
     FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
     FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
+    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
 };
 #include <cassert>
 #include <iostream>
@@ -47,9 +47,10 @@ Texture game_tex;
 Vector2 to_screen_vec = {screen_size. x / num_cols, screen_size.y / num_rows};
 const char* wall_tex_path = "tileable10d.png";
 const char* johannder_path = "johannder.png";
-const char* sprite_path = "johannder.png";
+const char* sprite_path = "woodSword.png";
 Image stone_wall_img = LoadImage(wall_tex_path);
 Image johannder_img = LoadImage(johannder_path);
+Image sword_img = LoadImage(sprite_path);
 bool debug_map = false;
 Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
 Texture johannder_tex;
@@ -68,10 +69,8 @@ struct Sprite {
     Vector2 size = {0.9f, 0.9f};
     float z = 0.f;
     Image* img;
-    Texture* tex;
 };
-Sprite johannder_sprite = {.position = {7.f, 7.f}, .img = &johannder_img, .tex = &johannder_tex};
-
+Sprite johannder_sprite = {.position = {7.f, 7.f}, .img = &sword_img};
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
     Vector2 direction = {0.f, 1.f};
@@ -116,7 +115,7 @@ void color_brightness(Color& c, float scale) {
 
 Rectangle squish_rec(Rectangle r, float factor) {
     float h = r.height * factor;
-    float y = (r.height - h) * 0.5f - (r.y * factor);
+    float y = (r.height - h) * 0.5f;
     return {r.x, y, r.width, h};
 }
 
@@ -135,9 +134,6 @@ Vector2 to_screen(Vector2 v) {
 Vector2 to_map(Vector2 v) {
     return Vector2Multiply(v, {map_boundary.width / num_cols, map_boundary.height / num_rows});
 }
-
-int array[] = {JOHANNDER, JOHANNDER, JOHANNDER, JOHANNDER, JOHANNDER, JOHANNDER, JOHANNDER};
-Vector2 asdf = {JOHANNDER, JOHANNDER};
 
 float snap(float n, float dn) {
     
@@ -229,7 +225,6 @@ void controls() {
 	player.speed -= 0.1f;
     } 
     player.position = new_pos;
-    asdf = player.position;
 }
 
 void draw_strip_flat(u64 x, float scale, Color c) {
@@ -239,29 +234,34 @@ void draw_strip_flat(u64 x, float scale, Color c) {
     ImageDrawRectangleRec(&game_img, strip, c);
 }
 
-void draw_strip_sprite(Vector2 pos, float x, float top, u64 u, float scale, Image img) {
+void draw_strip_sprite(Vector2 pos, float x, float height, u64 u, float scale, Image* img) {
+    if (u >= img->width) return;
+
     scale = Clamp(scale, 0.f, 1.f);
-    Rectangle strip = squish_rec({(float)x, top, 1.f, screen_size.y - 1}, scale);
-    if (debug_print) {
-	std::cout << "u = " << u << "\n";
-	debug_print = false;
-    }
-    if (u > img.width) return;
+    Rectangle strip = squish_rec({(float)x, 0, 1.f, screen_size.y - 1}, scale);
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(light_pos, pos));
     float depth = Vector2Length(Vector2Subtract(pos, player.position));
+
     for (u64 y = strip.y; y < strip.y + strip.height; ++y) {
-	if (v >= img.height) v = img.height - 1;
-	if(y < 0) y = 0;
-	u64 idx = index(x,y, screen_size.x);
+	if (v >= img->height) break;
+
+	float y_screen = y - ((height / num_cols * screen_size.y) * scale);
+	if (y_screen < 0.f) y_screen = 0.f; 
+	else if (y_screen >= screen_size.y) y_screen = screen_size.y - 1;
+	u64 idx = index(x, y_screen, screen_size.x);
+	assert(idx < screen_size.x * screen_size.y);
+
 	if (depth < depth_buffer[idx]) {
-		u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
-		Color* col = (Color*)(&pixel_col);
-		color_brightness(*col, (1.f / dist_light + scale));
-		ImageDrawPixel(&game_img, x, y, *col);
-		depth_buffer[index(x, y, screen_size.x)] = depth;
+	    u32 pixel_col = ((u32*)img->data)[u + (u64)v * img->width];
+	    Color col = *(Color*)(&pixel_col);
+	    if (col.a) {
+		color_brightness(col, (1.f / dist_light + scale));
+		ImageDrawPixel(&game_img, x, y_screen, col);
+		depth_buffer[index(x, y_screen, screen_size.x)] = depth;
+	    }
 	}
-	v += 1.f / strip.height * img.height;
+	v += 1.f / strip.height * img->height;
     }
 }
 
@@ -365,6 +365,8 @@ void draw_map(Rectangle boundary) {
     ImageDrawLineV(&map_img, player_map, to_map(player.fov_right()), GREEN);
     ImageDrawLineV(&map_img, to_map(player.fov_right()), to_map(player.fov_left()), RED);
 
+    ImageDrawRectangleV(&map_img, to_map(johannder_sprite.position), to_map(johannder_sprite.size), BLACK);
+
     if (debug_map) {
 	Vector2 prev = player.position;
 	Vector2 next = p2;
@@ -372,7 +374,7 @@ void draw_map(Rectangle boundary) {
 	Vector2 left = player.fov_left();
 	Vector2 right = player.fov_right();
 	Vector2 left_right = Vector2Subtract(right, left);
-	u64 step_max = 100;
+	u64 step_max = 10;
 	for (int step = 0; step < step_max; ++step) {
 	    prev = player.position;
 	    ray_dir = Vector2Subtract(left, player.position);
@@ -392,8 +394,8 @@ void draw_map(Rectangle boundary) {
 		ImageDrawRectangleLines(&map_img, r, 2, RED);
 		ImageDrawLineV(&map_img, to_map(next), cell_map, YELLOW);
 		if (level[index(cell.x, cell.y, num_cols)]) {
-		    ImageDrawCircleV(&map_img, to_map(next), 10, MAGENTA);
-		    ImageDrawCircleV(&map_img, to_map({(float)cell.x, (float)cell.y}), 10, RED);
+		    ImageDrawCircleV(&map_img, to_map(next), 1, MAGENTA);
+		    ImageDrawCircleV(&map_img, to_map({(float)cell.x, (float)cell.y}), 1, RED);
 		    break;
 		}
 		else {
@@ -452,7 +454,7 @@ void draw_sprite(const Sprite& sprite) {
     float step = (johannder_img.width * (visible_length / full_length)) / (x_end - x_start);
     float u = right_visible ? step * (full_length - visible_length) : 0.f; 
     for(u64 x = x_start; x <= x_end; ++x) {
-	draw_strip_sprite(sprite.position, x, sprite.z, u, scale, johannder_img);
+	draw_strip_sprite(sprite.position, x, sprite.z, u, scale, sprite.img);
 	u += step;
     }
 }
@@ -478,6 +480,7 @@ int main() {
     SetTargetFPS(fps);
     ImageFormat(&stone_wall_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
     ImageFormat(&johannder_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    ImageFormat(&sword_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
     map_tex = LoadTextureFromImage(map_img);
     game_tex = LoadTextureFromImage(game_img);
     player.direction = Vector2Normalize({1.f, 1.f});
