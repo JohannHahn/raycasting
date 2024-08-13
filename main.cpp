@@ -70,7 +70,8 @@ struct Sprite {
     float z = 0.f;
     Image* img;
 };
-Sprite johannder_sprite = {.position = {7.f, 7.f}, .img = &sword_img};
+Sprite sprite = {.position = {7.f, 7.f}, .img = &sword_img};
+Sprite sprite2 = {.position = {5.f, 5.f}, .img = &sword_img};
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
     Vector2 direction = {0.f, 1.f};
@@ -105,6 +106,10 @@ constexpr bool color_equal(Color c1, Color c2) {
 constexpr u64 index(u64 x, u64 y, u64 width) {
     return x + y * width;
 }
+
+Color u32_to_col(u32 i) {
+    return *(Color*)(&i);
+} 
 
 void color_brightness(Color& c, float scale) {
     scale = Clamp(scale, 0.f, 1.f);
@@ -189,12 +194,12 @@ bool inside_wall(Vector2 p) {
 void controls() {
     float dt = GetFrameTime();
     if (IsKeyDown(KEY_U)) {
-	johannder_sprite.z++; 
+	sprite.z++; 
     } 
     if (IsKeyPressed(KEY_P)) {
 	debug_print = true;
     }
-    if (IsKeyDown(KEY_J)) johannder_sprite.z--; 
+    if (IsKeyDown(KEY_J)) sprite.z--; 
     Vector2 new_pos = player.position;
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
 	new_pos = Vector2Subtract(player.position, Vector2Scale(player.direction, player.speed * dt));
@@ -227,6 +232,7 @@ void controls() {
     player.position = new_pos;
 }
 
+
 void draw_strip_flat(u64 x, float scale, Color c) {
     scale = Clamp(scale, 0.f, 1.f);
     Rectangle strip = squish_rec({(float)x, 0, 2.f, screen_size.y - 1}, scale);
@@ -245,21 +251,19 @@ void draw_strip_sprite(Vector2 pos, float x, float height, u64 u, float scale, I
 
     for (u64 y = strip.y; y < strip.y + strip.height; ++y) {
 	if (v >= img->height) break;
-
 	float y_screen = y - ((height / num_cols * screen_size.y) * scale);
 	if (y_screen < 0.f) y_screen = 0.f; 
 	else if (y_screen >= screen_size.y) y_screen = screen_size.y - 1;
 	u64 idx = index(x, y_screen, screen_size.x);
 	assert(idx < screen_size.x * screen_size.y);
-
-	if (depth < depth_buffer[idx]) {
-	    u32 pixel_col = ((u32*)img->data)[u + (u64)v * img->width];
-	    Color col = *(Color*)(&pixel_col);
-	    if (col.a) {
-		color_brightness(col, (1.f / dist_light + scale));
-		ImageDrawPixel(&game_img, x, y_screen, col);
-		depth_buffer[index(x, y_screen, screen_size.x)] = depth;
-	    }
+	Color txt_pixel = u32_to_col(((u32*)img->data)[index(u, v, img->width)]);
+	if (depth < depth_buffer[idx] && txt_pixel.a > 100) {
+	    Color txt_pixel = u32_to_col(((u32*)img->data)[index(u, v, img->width)]);
+	    Color game_pixel = u32_to_col(((u32*)game_img.data)[index(x, y_screen, game_img.width)]);
+	    Color final_col = ColorAlphaBlend(game_pixel, txt_pixel, WHITE);
+	    color_brightness(final_col, (1.f / dist_light + scale));
+	    ImageDrawPixel(&game_img, x, y_screen, final_col);
+	    depth_buffer[index(x, y_screen, screen_size.x)] = depth;
 	}
 	v += 1.f / strip.height * img->height;
     }
@@ -365,8 +369,6 @@ void draw_map(Rectangle boundary) {
     ImageDrawLineV(&map_img, player_map, to_map(player.fov_right()), GREEN);
     ImageDrawLineV(&map_img, to_map(player.fov_right()), to_map(player.fov_left()), RED);
 
-    ImageDrawRectangleV(&map_img, to_map(johannder_sprite.position), to_map(johannder_sprite.size), BLACK);
-
     if (debug_map) {
 	Vector2 prev = player.position;
 	Vector2 next = p2;
@@ -451,7 +453,7 @@ void draw_sprite(const Sprite& sprite) {
 
     float full_length = scale * screen_size.x;
     float visible_length = (x_end - x_start);
-    float step = (johannder_img.width * (visible_length / full_length)) / (x_end - x_start);
+    float step = (sprite.img->width * (visible_length / full_length)) / (x_end - x_start);
     float u = right_visible ? step * (full_length - visible_length) : 0.f; 
     for(u64 x = x_start; x <= x_end; ++x) {
 	draw_strip_sprite(sprite.position, x, sprite.z, u, scale, sprite.img);
@@ -474,6 +476,8 @@ void render() {
 }
 
 
+
+
 int main() {
     InitWindow(window_size.x, window_size.y, window_title);
     SetWindowState(FLAG_WINDOW_RESIZABLE);
@@ -493,7 +497,8 @@ int main() {
 	draw_floor();
 	draw_walls(game_boundary);
 	draw_map(map_boundary);
-	draw_sprite(johannder_sprite);
+	draw_sprite(sprite);
+	draw_sprite(sprite2);
 	render();
 	EndDrawing();
     }
