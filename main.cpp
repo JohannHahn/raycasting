@@ -51,7 +51,7 @@ const char* sprite_path = "woodSword.png";
 Image stone_wall_img = LoadImage(wall_tex_path);
 Image johannder_img = LoadImage(johannder_path);
 Image sword_img = LoadImage(sprite_path);
-bool debug_map = false;
+bool debug_map = true;
 Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
 Texture johannder_tex;
 
@@ -70,12 +70,14 @@ struct Sprite {
     float z = 0.f;
     Image* img;
 };
-Sprite sprite = {.position = {7.f, 7.f}, .img = &sword_img};
-Sprite sprite2 = {.position = {5.f, 5.f}, .img = &sword_img};
+Sprite sprite = {.position = {2.f, 2.f}, .size = {0.5f, 0.5f}, .img = &sword_img};
+Sprite sprite2 = {.position = {3.f, 2.f}, .size = {1.f, 1.f}, .img = &sword_img};
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
     Vector2 direction = {0.f, 1.f};
+    float look_vert = 0.f;
     float speed = 5.f;
+    float size = 0.4f;
     float rotation_speed = PI * 2.f;
     float near_plane = .1f;
     float far_plane = num_cols * 2;
@@ -85,7 +87,6 @@ struct Player {
 	direction = Vector2Normalize(Vector2Rotate(direction, sign * rotation_speed * GetFrameTime()));
     }
     Color color = RED;
-    float size = 0.4f;
     Vector2 fov_left() {
 	return Vector2Subtract(Vector2Add(position, Vector2Scale(direction, near_plane)), Vector2Rotate(Vector2Scale(direction, near_plane), PI/2));
     }
@@ -193,6 +194,18 @@ bool inside_wall(Vector2 p) {
 
 void controls() {
     float dt = GetFrameTime();
+    Vector2 mouse_delta = GetMouseDelta();
+    player.change_dir(mouse_delta.x);
+    player.look_vert -= player.rotation_speed * mouse_delta.y * dt;
+    float max_look = 5.f;
+    if (player.look_vert < -max_look) player.look_vert = -max_look; 
+    else if (player.look_vert > max_look) player.look_vert = max_look; 
+    if (IsKeyDown(KEY_E)) {
+	player.look_vert += 1.f * dt;
+    }
+    if (IsKeyDown(KEY_R)) {
+	player.look_vert -= 1.f * dt;
+    }
     if (IsKeyDown(KEY_U)) {
 	sprite.z++; 
     } 
@@ -252,6 +265,7 @@ void draw_strip_sprite(Vector2 pos, float x, float height, u64 u, float scale, I
     for (u64 y = strip.y; y < strip.y + strip.height; ++y) {
 	if (v >= img->height) break;
 	float y_screen = y - ((height / num_cols * screen_size.y) * scale);
+	y_screen += player.look_vert / num_cols * screen_size.y;
 	if (y_screen < 0.f) y_screen = 0.f; 
 	else if (y_screen >= screen_size.y) y_screen = screen_size.y - 1;
 	u64 idx = index(x, y_screen, screen_size.x);
@@ -278,11 +292,14 @@ void draw_strip(Vector2 pos, float x, float top, u64 u, float scale, Image img) 
     float depth = Vector2Length(Vector2Subtract(pos, player.position));
     for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
 	if (v < img.height) {
+	    float y_screen = y + player.look_vert / num_cols * screen_size.y;
+	    if (y_screen < 0.f) y_screen = 0.f; 
+	    else if (y_screen >= screen_size.y) y_screen = screen_size.y - 1;
 	    u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
 	    Color* col = (Color*)(&pixel_col);
 	    color_brightness(*col, (1.f / dist_light + scale));
-	    ImageDrawPixel(&game_img, x, y, *col);
-	    depth_buffer[index(x, y, screen_size.x)] = depth;
+	    ImageDrawPixel(&game_img, x, y_screen, *col);
+	    depth_buffer[index(x, y_screen, screen_size.x)] = depth;
 	}
 	v += 1.f / strip.height * img.height;
     }
@@ -369,6 +386,9 @@ void draw_map(Rectangle boundary) {
     ImageDrawLineV(&map_img, player_map, to_map(player.fov_right()), GREEN);
     ImageDrawLineV(&map_img, to_map(player.fov_right()), to_map(player.fov_left()), RED);
 
+    ImageDrawCircleV(&map_img, Vector2Add(to_map(sprite.position), to_map({0.5f, 0.5f})), 2, RED);
+    ImageDrawCircleV(&map_img, Vector2Add(to_map(sprite2.position), to_map({0.5f, 0.5f})), 2, RED);
+
     if (debug_map) {
 	Vector2 prev = player.position;
 	Vector2 next = p2;
@@ -412,7 +432,10 @@ void draw_map(Rectangle boundary) {
 void draw_floor() {
     float scale = 1.f - EPSILON;
     Color c = WHITE;
-    for (float y = screen_size.y - 1; y >= screen_size.y / 2.f; --y) {
+    float end = screen_size.y / 2.f + (player.look_vert / num_cols * screen_size.y);
+    if (end >= screen_size.y) end = screen_size.y - 1;
+    else if (end < 0.f) end = 0.f;
+    for (float y = screen_size.y - 1; y >= end; --y) {
 	ImageDrawLineV(&game_img, {0, y}, {screen_size.x, y}, ColorTint(floor_col, c));
 	color_brightness(c, scale);
     }
