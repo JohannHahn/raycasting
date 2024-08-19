@@ -79,7 +79,7 @@ struct Player {
     float speed = 5.f;
     float size = 0.4f;
     float rotation_speed = PI * 2.f;
-    float near_plane = .1f;
+    float near_plane = 0.5f;
     float far_plane = num_cols * 2;
     void change_dir(int sign) {
 	if (sign < 0) sign = -1;
@@ -197,8 +197,8 @@ void controls() {
     Vector2 mouse_delta = GetMouseDelta();
     player.change_dir(mouse_delta.x);
     player.look_vert -= player.rotation_speed * mouse_delta.y * dt;
-    float max_look = 5.f;
-    if (player.look_vert < -max_look) player.look_vert = -max_look; 
+    float max_look = 19.f;
+    if (player.look_vert < (-max_look)) player.look_vert = -max_look; 
     else if (player.look_vert > max_look) player.look_vert = max_look; 
     if (IsKeyDown(KEY_E)) {
 	player.look_vert += 1.f * dt;
@@ -452,8 +452,8 @@ void draw_sprite(const Sprite& sprite) {
     float scale = sprite.size.x / distance;
     Vector2 fov_plane = Vector2Subtract(player.fov_right(), player.fov_left());
     Vector2 camera_plane_dir = Vector2Normalize(fov_plane); 
-    Vector2 sprite_left = Vector2Subtract(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x));
-    Vector2 sprite_right = Vector2Add(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x));
+    Vector2 sprite_left = Vector2Subtract(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x / 2.f));
+    Vector2 sprite_right = Vector2Add(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x / 2.f));
     
     Vector2 collision_left, collision_right;
     bool left_visible = CheckCollisionLines(player.position, sprite_left, player.fov_left(), player.fov_right(), &collision_left); 
@@ -511,6 +511,7 @@ int main() {
     map_tex = LoadTextureFromImage(map_img);
     game_tex = LoadTextureFromImage(game_img);
     player.direction = Vector2Normalize({1.f, 1.f});
+    player.look_vert = 0.f;
     johannder_tex = LoadTextureFromImage(johannder_img);
     while(!WindowShouldClose()) {
 	if (IsWindowResized()) resize();
