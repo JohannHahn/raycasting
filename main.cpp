@@ -51,7 +51,7 @@ const char* sprite_path = "woodSword.png";
 Image stone_wall_img = LoadImage(wall_tex_path);
 Image johannder_img = LoadImage(johannder_path);
 Image sword_img = LoadImage(sprite_path);
-bool debug_map = true;
+bool debug_map = false;
 Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
 Texture johannder_tex;
 
@@ -66,12 +66,12 @@ enum side_kind {
 
 struct Sprite {
     Vector2 position; 
-    Vector2 size = {0.9f, 0.9f};
-    float z = 0.f;
+    Vector2 size;
+    float z;
     Image* img;
 };
-Sprite sprite = {.position = {2.f, 2.f}, .size = {0.5f, 0.5f}, .img = &sword_img};
-Sprite sprite2 = {.position = {3.f, 2.f}, .size = {1.f, 1.f}, .img = &sword_img};
+Sprite sprites[] = {{.position = {2.5f, 2.5f}, .size = {0.5f, 0.5f}, .img = &sword_img}, {.position = {3.5f, 2.5f}, .size = {1.f, 1.f}, .img = &sword_img}, 
+		    {.position = {3.5f, 1.5f}, .size = {0.5f, 0.5f}, .img = &sword_img}, {.position = {1.5f, 2.5f}, .size = {0.33f, 0.33f}, .img = &sword_img}};
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
     Vector2 direction = {0.f, 1.f};
@@ -206,13 +206,11 @@ void controls() {
     if (IsKeyDown(KEY_R)) {
 	player.look_vert -= 1.f * dt;
     }
-    if (IsKeyDown(KEY_U)) {
-	sprite.z++; 
-    } 
+    if (IsKeyDown(KEY_U)) sprites[0].z++; 
+    if (IsKeyDown(KEY_J)) sprites[0].z--; 
     if (IsKeyPressed(KEY_P)) {
 	debug_print = true;
     }
-    if (IsKeyDown(KEY_J)) sprite.z--; 
     Vector2 new_pos = player.position;
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
 	new_pos = Vector2Subtract(player.position, Vector2Scale(player.direction, player.speed * dt));
@@ -253,33 +251,35 @@ void draw_strip_flat(u64 x, float scale, Color c) {
     ImageDrawRectangleRec(&game_img, strip, c);
 }
 
-void draw_strip_sprite(Vector2 pos, float x, float height, u64 u, float scale, Image* img) {
-    if (u >= img->width) return;
+void draw_strip_sprite(const Sprite& sprite, float x, u64 u, float scale) {
+    if (u >= sprite.img->width) return;
 
     scale = Clamp(scale, 0.f, 1.f);
     Rectangle strip = squish_rec({(float)x, 0, 1.f, screen_size.y - 1}, scale);
+    float move_rec_down = (1.f - sprite.size.y) / num_rows * screen_size.y;
+    strip.y += move_rec_down * scale;  
+    strip.height += move_rec_down * scale;
     float v = 0.f;
-    float dist_light = Vector2Length(Vector2Subtract(light_pos, pos));
-    float depth = Vector2Length(Vector2Subtract(pos, player.position));
+    float dist_light = Vector2Length(Vector2Subtract(light_pos, sprite.position));
+    float depth = Vector2Length(Vector2Subtract(sprite.position, player.position));
 
     for (u64 y = strip.y; y < strip.y + strip.height; ++y) {
-	if (v >= img->height) break;
-	float y_screen = y - ((height / num_cols * screen_size.y) * scale);
+	if (v >= sprite.img->height) break;
+	float y_screen = y - ((sprite.z / num_cols * screen_size.y) * scale);
 	y_screen += player.look_vert / num_cols * screen_size.y;
 	if (y_screen < 0.f) y_screen = 0.f; 
 	else if (y_screen >= screen_size.y) y_screen = screen_size.y - 1;
 	u64 idx = index(x, y_screen, screen_size.x);
 	assert(idx < screen_size.x * screen_size.y);
-	Color txt_pixel = u32_to_col(((u32*)img->data)[index(u, v, img->width)]);
+	Color txt_pixel = u32_to_col(((u32*)sprite.img->data)[index(u, v, sprite.img->width)]);
 	if (depth < depth_buffer[idx] && txt_pixel.a > 100) {
-	    Color txt_pixel = u32_to_col(((u32*)img->data)[index(u, v, img->width)]);
 	    Color game_pixel = u32_to_col(((u32*)game_img.data)[index(x, y_screen, game_img.width)]);
 	    Color final_col = ColorAlphaBlend(game_pixel, txt_pixel, WHITE);
 	    color_brightness(final_col, (1.f / dist_light + scale));
 	    ImageDrawPixel(&game_img, x, y_screen, final_col);
 	    depth_buffer[index(x, y_screen, screen_size.x)] = depth;
 	}
-	v += 1.f / strip.height * img->height;
+	v += 1.f / strip.height * sprite.img->height;
     }
 }
 
@@ -386,8 +386,9 @@ void draw_map(Rectangle boundary) {
     ImageDrawLineV(&map_img, player_map, to_map(player.fov_right()), GREEN);
     ImageDrawLineV(&map_img, to_map(player.fov_right()), to_map(player.fov_left()), RED);
 
-    ImageDrawCircleV(&map_img, Vector2Add(to_map(sprite.position), to_map({0.5f, 0.5f})), 2, RED);
-    ImageDrawCircleV(&map_img, Vector2Add(to_map(sprite2.position), to_map({0.5f, 0.5f})), 2, RED);
+    for(const Sprite& s : sprites) {
+	ImageDrawCircleV(&map_img, to_map(s.position), 2, RED);
+    }
 
     if (debug_map) {
 	Vector2 prev = player.position;
@@ -452,8 +453,8 @@ void draw_sprite(const Sprite& sprite) {
     float scale = sprite.size.x / distance;
     Vector2 fov_plane = Vector2Subtract(player.fov_right(), player.fov_left());
     Vector2 camera_plane_dir = Vector2Normalize(fov_plane); 
-    Vector2 sprite_left = Vector2Subtract(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x / 2.f));
-    Vector2 sprite_right = Vector2Add(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x / 2.f));
+    Vector2 sprite_left = Vector2Subtract(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x));
+    Vector2 sprite_right = Vector2Add(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x));
     
     Vector2 collision_left, collision_right;
     bool left_visible = CheckCollisionLines(player.position, sprite_left, player.fov_left(), player.fov_right(), &collision_left); 
@@ -479,7 +480,7 @@ void draw_sprite(const Sprite& sprite) {
     float step = (sprite.img->width * (visible_length / full_length)) / (x_end - x_start);
     float u = right_visible ? step * (full_length - visible_length) : 0.f; 
     for(u64 x = x_start; x <= x_end; ++x) {
-	draw_strip_sprite(sprite.position, x, sprite.z, u, scale, sprite.img);
+	draw_strip_sprite(sprite, x, u, scale);
 	u += step;
     }
 }
@@ -519,10 +520,9 @@ int main() {
 	ImageClearBackground(&game_img, bg_color);
 	controls();
 	draw_floor();
-	draw_walls(game_boundary);
+	//draw_walls(game_boundary);
 	draw_map(map_boundary);
-	draw_sprite(sprite);
-	draw_sprite(sprite2);
+	for(const Sprite& s : sprites) draw_sprite(s);
 	render();
 	EndDrawing();
     }
