@@ -256,9 +256,7 @@ void draw_strip_sprite(const Sprite& sprite, float x, u64 u, float scale) {
 
     scale = Clamp(scale, 0.f, 1.f);
     Rectangle strip = squish_rec({(float)x, 0, 1.f, screen_size.y - 1}, scale);
-    float move_rec_down = (1.f - sprite.size.y) / num_rows * screen_size.y;
-    strip.y += move_rec_down * scale;  
-    strip.height += move_rec_down * scale;
+    strip.y += (1.f - sprite.size.y ) * strip.height / 2.f;  
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(light_pos, sprite.position));
     float depth = Vector2Length(Vector2Subtract(sprite.position, player.position));
@@ -520,7 +518,7 @@ int main() {
 	ImageClearBackground(&game_img, bg_color);
 	controls();
 	draw_floor();
-	//draw_walls(game_boundary);
+	draw_walls(game_boundary);
 	draw_map(map_boundary);
 	for(const Sprite& s : sprites) draw_sprite(s);
 	render();
