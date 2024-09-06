@@ -26,7 +26,7 @@ typedef uint64_t u64;
 typedef uint32_t u32;
 bool debug_print = false;
 
-Vector2 window_size = {900.f, 900.f}; 
+Vector2 window_size = {1200.f, 1200.f}; 
 constexpr Vector2 screen_size = {600.f, 600.f}; 
 constexpr const char* window_title = "not doom";
 //constexpr u64 num_cols = 10;
@@ -49,10 +49,12 @@ const char* wall_tex_path = "tileable10d.png";
 const char* johannder_path = "johannder.png";
 const char* sprite_path = "woodSword.png";
 const char* helmet_path = "helmet.png";
+const char* blob_path = "blob.png";
 Image stone_wall_img = LoadImage(wall_tex_path);
 Image johannder_img = LoadImage(johannder_path);
 Image sword_img = LoadImage(sprite_path);
 Image helmet_img = LoadImage(helmet_path);
+Image blob_img = LoadImage(blob_path);
 bool debug_map = false;
 Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
 Texture johannder_tex;
@@ -72,8 +74,9 @@ struct Sprite {
     float z;
     Image* img;
 };
-Sprite sprites[] = {{.position = {2.5f, 2.5f}, .size = {0.5f, 0.5f}, .img = &sword_img}, {.position = {3.5f, 2.5f}, .size = {1.f, 1.f}, .img = &johannder_img}, 
-		    {.position = {3.5f, 1.5f}, .size = {0.5f, 0.5f}, .img = &helmet_img}, {.position = {1.5f, 2.5f}, .size = {0.33f, 0.33f}, .img = &sword_img}};
+
+Sprite sprites[] = {{.position = {2.5f, 2.5f}, .size = {0.5f, 0.5f}, .img = &blob_img}, {.position = {3.5f, 2.5f}, .size = {1.f, 1.f}, .img = &johannder_img}, 
+		    {.position = {3.5f, 1.5f}, .size = {0.5f, 0.5f}, .img = &sword_img}, {.position = {1.5f, 2.5f}, .size = {0.33f, 0.33f}, .img = &sword_img}};
 struct Player {
     Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
     Vector2 direction = {0.f, 1.f};
@@ -81,7 +84,7 @@ struct Player {
     float speed = 5.f;
     float size = 0.4f;
     float rotation_speed = PI * 2.f;
-    float near_plane = 0.5f;
+    float near_plane = 0.2f;
     float far_plane = num_cols * 2;
     void change_dir(int sign) {
 	if (sign < 0) sign = -1;
@@ -90,23 +93,28 @@ struct Player {
     }
     Color color = RED;
     Vector2 fov_left() {
-	return Vector2Subtract(Vector2Add(position, Vector2Scale(direction, near_plane)), Vector2Rotate(Vector2Scale(direction, near_plane), PI/2));
+	return Vector2Subtract(Vector2Add(position, Vector2Scale(direction, near_plane)), Vector2Rotate(Vector2Scale(direction, near_plane), PI/2.f));
     }
     Vector2 fov_right() {
-	return Vector2Add(Vector2Add(position, Vector2Scale(direction, near_plane)), Vector2Rotate(Vector2Scale(direction, near_plane), PI/2));
+	return Vector2Add(Vector2Add(position, Vector2Scale(direction, near_plane)), Vector2Rotate(Vector2Scale(direction, near_plane), PI/2.f));
     }
 };
 Player player = {};
 
-constexpr bool float_equal(float a, float b) {
+void animate_sprite(Sprite& s, float t) {
+    float t_lerped = Lerp(0.f, 2.f * PI, t);
+    s.z += sin(t_lerped) * 0.1f;
+}
+
+bool float_equal(float a, float b) {
     return std::abs(a - b) < epsilon;
 }
 
-constexpr bool color_equal(Color c1, Color c2) {
+bool color_equal(Color c1, Color c2) {
     return (c1.a == c2.a && c1.r == c2.r && c1.g == c2.g && c1.b == c2.b);
 }
 
-constexpr u64 index(u64 x, u64 y, u64 width) {
+u64 index(u64 x, u64 y, u64 width) {
     return x + y * width;
 }
 
@@ -198,14 +206,11 @@ void controls() {
     float dt = GetFrameTime();
 
     Vector2 mouse_delta = GetMouseDelta();
-    std::cout << "mouse delta = " << mouse_delta.x << ", " << mouse_delta.y << "\n";
-    std::cout << "old look vert = " << player.look_vert  << "\n";
     player.change_dir(mouse_delta.x);
     player.look_vert -= player.rotation_speed * mouse_delta.y * dt;
     float max_look = 19.f;
     if (player.look_vert < (-max_look)) player.look_vert = -max_look; 
     else if (player.look_vert > max_look) player.look_vert = max_look; 
-    std::cout << "new look vert = " << player.look_vert << "\n";
 
     if (IsKeyDown(KEY_E)) {
 	player.look_vert += 1.f * dt;
@@ -446,7 +451,7 @@ void draw_floor() {
     else if (end < 0.f) end = 0.f;
     for (float y = screen_size.y - 1; y >= end; --y) {
 	ImageDrawLineV(&game_img, {0, y}, {screen_size.x, y}, ColorTint(floor_col, c));
-	color_brightness(c, scale);
+	//color_brightness(c, scale);
     }
 }
 
@@ -487,6 +492,7 @@ void draw_sprite(const Sprite& sprite) {
     float visible_length = (x_end - x_start);
     float step = (sprite.img->width * (visible_length / full_length)) / (x_end - x_start);
     float u = right_visible ? step * (full_length - visible_length) : 0.f; 
+
     for(u64 x = x_start; x <= x_end; ++x) {
 	draw_strip_sprite(sprite, x, u, scale);
 	u += step;
@@ -494,7 +500,7 @@ void draw_sprite(const Sprite& sprite) {
 }
 
 void fill_depth_buffer(float val) {
-   for(float& n: depth_buffer) {
+    for(float& n: depth_buffer) {
 	n = val;
     } 
 }
@@ -507,7 +513,9 @@ void render() {
     fill_depth_buffer(max_depth);
 }
 
+
 int main() {
+
     InitWindow(window_size.x, window_size.y, window_title);
     SetWindowState(FLAG_WINDOW_RESIZABLE);
     SetTargetFPS(fps);
@@ -519,6 +527,7 @@ int main() {
     player.direction = Vector2Normalize({1.f, 1.f});
     player.look_vert = 0.f;
     johannder_tex = LoadTextureFromImage(johannder_img);
+    float t = 0.f;
     while(!WindowShouldClose()) {
 	if (IsWindowResized()) resize();
 	BeginDrawing();
@@ -527,10 +536,16 @@ int main() {
 	draw_floor();
 	draw_walls(game_boundary);
 	draw_map(map_boundary);
-	for(const Sprite& s : sprites) draw_sprite(s);
+	for(Sprite& s : sprites) { 
+	    draw_sprite(s);
+	    //animate_sprite(s, t);
+	}
+	t += GetFrameTime();
+	if (t > 1.f) t = 0.f;
 	render();
 	EndDrawing();
     }
+
     CloseWindow();
     return 0;
 }
