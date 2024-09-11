@@ -1,21 +1,4 @@
 #include <cstring>
-constexpr long num_cols = 10;
-constexpr long num_rows = 10;
-enum wall_tex {
-    EMPTY, FLAT, STONE_WALL, JOHANNDER,
-};
-wall_tex level[num_rows * num_cols] = {
-    FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY,	    JOHANNDER, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY,	    JOHANNDER, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, JOHANNDER, JOHANNDER, JOHANNDER, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, STONE_WALL, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
-};
 #include <cassert>
 #include <iostream>
 #include <inttypes.h>
@@ -27,10 +10,10 @@ typedef uint32_t u32;
 bool debug_print = false;
 
 Vector2 window_size = {1200.f, 1200.f}; 
+constexpr long num_cols = 10;
+constexpr long num_rows = 10;
 constexpr Vector2 screen_size = {600.f, 600.f}; 
 constexpr const char* window_title = "not doom";
-//constexpr u64 num_cols = 10;
-//constexpr u64 num_rows = 10;
 constexpr float fps = 60.f;
 constexpr float map_factor = 3.f;
 constexpr float epsilon = 0.00001f;
@@ -66,7 +49,35 @@ enum side_kind {
     UNUSED, X, Y, PARALLEL 
 };
 
+enum wall_tex {
+    EMPTY, FLAT, STONE_WALL, JOHANNDER, WALL_TEX_MAX
+};
 
+
+struct Wall {
+    wall_tex tex;
+    Image* decal;
+    Rectangle decal_rec;
+};
+Wall walls[WALL_TEX_MAX] = {
+    {EMPTY, NULL, {}}, 
+    {FLAT, NULL, {}}, 
+    {STONE_WALL, NULL, {}}, 
+    {JOHANNDER, &sword_img, {1.f, 1.f}}
+};
+
+wall_tex level[num_rows * num_cols] = {
+    FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, JOHANNDER, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, JOHANNDER, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, JOHANNDER, JOHANNDER, JOHANNDER, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, STONE_WALL, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+    EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
+};
 
 struct Sprite {
     Vector2 position; 
@@ -123,7 +134,6 @@ Color u32_to_col(u32 i) {
 } 
 
 void color_brightness(Color& c, float scale) {
-    scale = Clamp(scale, 0.f, 1.f);
     c.r *= scale;
     c.g *= scale;
     c.b *= scale;
@@ -272,6 +282,7 @@ void draw_strip_sprite(const Sprite& sprite, float x, u64 u, float scale) {
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(light_pos, sprite.position));
     float depth = Vector2Length(Vector2Subtract(sprite.position, player.position));
+    u32* pixels = (u32*)(game_img.data);
 
     for (u64 y = strip.y; y < strip.y + strip.height; ++y) {
 	if (v >= sprite.img->height) break;
@@ -289,7 +300,8 @@ void draw_strip_sprite(const Sprite& sprite, float x, u64 u, float scale) {
 	    Color game_pixel = u32_to_col(((u32*)game_img.data)[index(x, y_screen, game_img.width)]);
 	    Color final_col = ColorAlphaBlend(game_pixel, txt_pixel, WHITE);
 	    color_brightness(final_col, (1.f / dist_light + scale));
-	    ImageDrawPixel(&game_img, x, y_screen, final_col);
+	    //ImageDrawPixel(&game_img, x, y_screen, final_col);
+        pixels[index(x, y_screen, game_img.width)] = *(u32*)&final_col;
 	    depth_buffer[index(x, y_screen, screen_size.x)] = depth;
 	}
 	v += 1.f / strip.height * sprite.img->height;
@@ -297,12 +309,12 @@ void draw_strip_sprite(const Sprite& sprite, float x, u64 u, float scale) {
 }
 
 void draw_strip(Vector2 pos, float x, float top, u64 u, float scale, Image img) {
-    scale = Clamp(scale, 0.f, 1.f);
     Rectangle strip = squish_rec({(float)x, top, 1.f, screen_size.y - 1}, scale);
     if (u > img.width) return;
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(light_pos, pos));
     float depth = Vector2Length(Vector2Subtract(pos, player.position));
+    u32* pixels = (u32*)(game_img.data);
     for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
 	if (v < img.height) {
 	    float y_screen = y + player.look_vert / num_cols * screen_size.y;
@@ -311,7 +323,8 @@ void draw_strip(Vector2 pos, float x, float top, u64 u, float scale, Image img) 
 	    u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
 	    Color* col = (Color*)(&pixel_col);
 	    color_brightness(*col, (1.f / dist_light + scale));
-	    ImageDrawPixel(&game_img, x, y_screen, *col);
+	    //ImageDrawPixel(&game_img, x, y_screen, *col);
+	    pixels[index(x, y_screen, game_img.width)] = *(u32*)col;
 	    depth_buffer[index(x, y_screen, screen_size.x)] = depth;
 	}
 	v += 1.f / strip.height * img.height;
@@ -329,47 +342,44 @@ void draw_walls(Rectangle boundary) {
     Vector2 right = player.fov_right();
     Vector2 left_right = Vector2Subtract(right, left);
     for (int x = boundary.x; x < boundary.width; ++x) {
-	prev = player.position;
-	ray_dir = Vector2Subtract(left, player.position);
-	next = Vector2Add(player.position, ray_dir);
-	for(int i = 0; i < player.far_plane; ++i) {
-	    int kind = 0;
-	    Vector2 p = next_point(prev, next, kind);
-	    prev = next;
-	    next = p;
-	    Vector2 cell = Vector2Add(next, Vector2Scale(ray_dir, epsilon));
-	    cell.x = floor(cell.x);
-	    cell.y = floor(cell.y);
-	    if (cell.x >= num_cols || cell.y >= num_rows) continue;
-	    wall_tex cell_type = level[index(cell.x, cell.y, num_cols)];
-	    if (cell_type) {
-		float distance = Vector2DotProduct(Vector2Subtract(next, player.position), player.direction) * 2.f;
-		Color c = colors[kind];
-		if (cell_type == JOHANNDER) {
-		    Vector2 t = Vector2Subtract(next, cell);
-		    float u = 0;
-		    if(float_equal(t.y, 1.f)) u = t.x;
-		    else if(float_equal(t.y, 0.f)) u = 1.f - t.x;
-		    else if(float_equal(t.x, 0.f)) u = t.y;
-		    else  u = 1.f - t.y;
-		    draw_strip(next, x, 0.f, u * johannder_img.width, 1.f / distance, johannder_img);
+		prev = player.position;
+		ray_dir = Vector2Subtract(left, player.position);
+		next = Vector2Add(player.position, ray_dir);
+		for(int i = 0; i < player.far_plane; ++i) {
+			int kind = 0;
+			Vector2 p = next_point(prev, next, kind);
+			prev = next;
+			next = p;
+			Vector2 cell = Vector2Add(next, Vector2Scale(ray_dir, epsilon));
+			cell.x = floor(cell.x);
+			cell.y = floor(cell.y);
+			if (cell.x >= num_cols || cell.y >= num_rows) continue;
+			wall_tex cell_type = level[index(cell.x, cell.y, num_cols)];
+			if (cell_type) {
+				float distance = Vector2DotProduct(Vector2Subtract(next, player.position), player.direction) * 2.f;
+				Color c = colors[kind];
+				if (cell_type == JOHANNDER) {
+					Vector2 t = Vector2Subtract(next, cell);
+					float u = 0;
+					if(float_equal(t.y, 1.f)) u = t.x;
+					else if(float_equal(t.y, 0.f)) u = 1.f - t.x;
+					else if(float_equal(t.x, 0.f)) u = t.y;
+					else  u = 1.f - t.y;
+					draw_strip(next, x, 0.f, u * johannder_img.width, 1.f / distance, johannder_img);
+				}
+				else {
+					Vector2 t = Vector2Subtract(next, cell);
+					float u = 0;
+					if(float_equal(t.y, 1.f)) u = t.x;
+					else if(float_equal(t.y, 0.f)) u = 1.f - t.x;
+					else if(float_equal(t.x, 0.f)) u = t.y;
+					else  u = 1.f - t.y;
+					draw_strip(next, x, 0.f, u * stone_wall_img.width, 1.f / distance, stone_wall_img);
+				}
+				break;
+			}
 		}
-		else {
-		    Vector2 t = Vector2Subtract(next, cell);
-		    float u = 0;
-		    if(float_equal(t.y, 1.f)) u = t.x;
-		    else if(float_equal(t.y, 0.f)) u = 1.f - t.x;
-		    else if(float_equal(t.x, 0.f)) u = t.y;
-		    else  u = 1.f - t.y;
-		    draw_strip(next, x, 0.f, u * stone_wall_img.width, 1.f / distance, stone_wall_img);
-		}
-		//else draw_strip_flat(x, 1.f / distance, c);
-		break;
-	    }
-	    else {
-	    }
-	}
-	left = Vector2Add(left, Vector2Scale(left_right, 1.f / screen_size.x));
+	    left = Vector2Add(left, Vector2Scale(left_right, 1.f / screen_size.x));
     }
 }
 
@@ -377,17 +387,17 @@ void draw_map(Rectangle boundary) {
     ImageClearBackground(&map_img, map_bg);
     Vector2 size = {boundary.width / num_cols, boundary.height / num_rows};
     for (u64 x = 0; x < num_cols; ++x) {
-	ImageDrawLine(&map_img, x * size.x, 0, x*size.x, num_rows * size.y, ColorAlpha(RAYWHITE, 0.5f));
+	    ImageDrawLine(&map_img, x * size.x, 0, x*size.x, num_rows * size.y, ColorAlpha(RAYWHITE, 0.5f));
     }
     for (u64 y = 0; y < num_rows; ++y) {
-	ImageDrawLine(&map_img, 0, y * size.y, num_cols * size.x, y * size.y, ColorAlpha(RAYWHITE, 0.5f));
+	    ImageDrawLine(&map_img, 0, y * size.y, num_cols * size.x, y * size.y, ColorAlpha(RAYWHITE, 0.5f));
     }
     for(u64 y = 0; y < num_rows; ++y) {
-	for(u64 x = 0; x < num_cols; ++x) {
-	    if(level[index(x, y, num_cols)]) {
-		ImageDrawRectangleV(&map_img, {x * size.x, y * size.y}, size, ColorAlpha(WHITE, 0.5f));
-	    }
-	}
+		for(u64 x = 0; x < num_cols; ++x) {
+			if(level[index(x, y, num_cols)]) {
+			ImageDrawRectangleV(&map_img, {x * size.x, y * size.y}, size, ColorAlpha(WHITE, 0.5f));
+			}
+		}
     }
     Vector2 player_map = Vector2Multiply(player.position, size);
     Vector2 p2 = Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane));
@@ -449,10 +459,13 @@ void draw_floor() {
     float end = screen_size.y / 2.f + (player.look_vert / num_cols * screen_size.y);
     if (end >= screen_size.y) end = screen_size.y - 1;
     else if (end < 0.f) end = 0.f;
+    ImageDrawRectangle(&game_img, 0, end, screen_size.x, screen_size.y - end, ColorTint(floor_col, c));
+#if 0
     for (float y = screen_size.y - 1; y >= end; --y) {
 	ImageDrawLineV(&game_img, {0, y}, {screen_size.x, y}, ColorTint(floor_col, c));
 	//color_brightness(c, scale);
     }
+#endif
 }
 
 void resize() {
@@ -494,14 +507,14 @@ void draw_sprite(const Sprite& sprite) {
     float u = right_visible ? step * (full_length - visible_length) : 0.f; 
 
     for(u64 x = x_start; x <= x_end; ++x) {
-	draw_strip_sprite(sprite, x, u, scale);
-	u += step;
+		draw_strip_sprite(sprite, x, u, scale);
+		u += step;
     }
 }
 
 void fill_depth_buffer(float val) {
     for(float& n: depth_buffer) {
-	n = val;
+	    n = val;
     } 
 }
 
@@ -518,7 +531,6 @@ int main() {
 
     InitWindow(window_size.x, window_size.y, window_title);
     SetWindowState(FLAG_WINDOW_RESIZABLE);
-    SetTargetFPS(fps);
     ImageFormat(&stone_wall_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
     ImageFormat(&johannder_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
     ImageFormat(&sword_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
@@ -537,8 +549,8 @@ int main() {
 	draw_walls(game_boundary);
 	draw_map(map_boundary);
 	for(Sprite& s : sprites) { 
-	    draw_sprite(s);
-	    //animate_sprite(s, t);
+		draw_sprite(s);
+		animate_sprite(s, t);
 	}
 	t += GetFrameTime();
 	if (t > 1.f) t = 0.f;
