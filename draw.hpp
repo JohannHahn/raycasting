@@ -1,3 +1,5 @@
+#ifndef DRAW_HPP
+#define DRAW_HPP
 #include "raylib/raylib/include/raylib.h"
 #include "raylib/raylib/include/raymath.h"
 #include <cassert>
@@ -6,6 +8,7 @@
 struct Sprite {
     Vector2 position;
     Vector2 size;
+    float height;
     Image* img;
 };
 
@@ -44,11 +47,12 @@ void draw_strip_flat(u64 x, float scale, Color c, Vector2 screen_size, Image* im
     ImageDrawRectangleRec(img, strip, c);
 }
 
-void draw_strip_sprite(const Sprite& sprite, const Context& context, const Player& player, float screen_x, u64 texture_x, float scale, Image* img) {
+void draw_strip_sprite(const Sprite& sprite, Context& context, const Player& player, 
+		       float screen_x, u64 texture_x, float scale, Image* img) {
     if (texture_x >= sprite.img->width) return;
 
     scale = Clamp(scale, 0.f, 1.f);
-    Rectangle strip = squish_rec({(float)screen_x, 0, 1.f, context.screen_size.y - 1}, scale);
+    Rectangle strip = squish_rec({(float)screen_x, 0, 1.f, screen_size.y - 1}, scale);
     strip.y += (1.f - sprite.size.y ) * strip.height;  
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(context.light_pos, sprite.position));
@@ -58,53 +62,53 @@ void draw_strip_sprite(const Sprite& sprite, const Context& context, const Playe
     for (u64 y = strip.y; y < strip.y + strip.height; ++y) {
 	if (v >= sprite.img->height) break;
 
-	float y_screen = y - ((sprite.z / context.num_cols * context.screen_size.y) * scale);
-	y_screen += player.look_vert / context.num_cols * context.screen_size.y;
-	if (y_screen < 0.f) y_screen = 0.f; 
-	else if (y_screen >= context.screen_size.y) y_screen = context.screen_size.y - 1;
+	float screen_y = y - ((sprite.height / num_cols * screen_size.y) * scale);
+	screen_y += player.look_vert / num_cols * screen_size.y;
+	if (screen_y < 0.f) screen_y = 0.f; 
+	else if (screen_y >= screen_size.y) screen_y = screen_size.y - 1;
 
-	u64 idx = index(screen_x, y_screen, context.screen_size.x);
-	assert(idx < context.screen_size.x * context.screen_size.y);
+	u64 idx = index(screen_x, screen_y, screen_size.x);
+	assert(idx < screen_size.x * screen_size.y);
 
 	Color txt_pixel = u32_to_col(((u32*)sprite.img->data)[index(texture_x, v, sprite.img->width)]);
 	if (depth < context.depth_buffer[idx] && txt_pixel.a > 100) {
-	    Color game_pixel = u32_to_col(((u32*)img->data)[index(x, y_screen, img->width)]);
+	    Color game_pixel = u32_to_col(((u32*)img->data)[index(screen_x, screen_y, img->width)]);
 	    Color final_col = ColorAlphaBlend(game_pixel, txt_pixel, WHITE);
 	    color_brightness(final_col, (1.f / dist_light + scale));
 	    //ImageDrawPixel(&game_img, x, y_screen, final_col);
-        pixels[index(x, y_screen, game_img.width)] = *(u32*)&final_col;
-	    depth_buffer[index(x, y_screen, screen_size.x)] = depth;
+	    pixels[index(screen_x, screen_y, img->width)] = *(u32*)&final_col;
+	    context.depth_buffer[index(screen_x, screen_y, screen_size.x)] = depth;
 	}
 	v += 1.f / strip.height * sprite.img->height;
     }
 }
 
-void draw_strip(Vector2 pos, float x, float top, u64 u, float scale, Image img) {
+void draw_strip(Context& context, const Player& player, Vector2 pos, float screen_x, float top, u64 u, float scale, Image* img) {
     scale = Clamp(scale, 0.f, 1.f);
-    Rectangle strip = squish_rec({(float)x, top, 1.f, screen_size.y - 1}, scale);
-    if (u > img.width) return;
+    Rectangle strip = squish_rec({(float)screen_x, top, 1.f, screen_size.y - 1}, scale);
+    if (u > img->width) return;
     float v = 0.f;
-    float dist_light = Vector2Length(Vector2Subtract(light_pos, pos));
+    float dist_light = Vector2Length(Vector2Subtract(context.light_pos, pos));
     float depth = Vector2Length(Vector2Subtract(pos, player.position));
-    u32* pixels = (u32*)(game_img.data);
+    u32* pixels = (u32*)(img->data);
     for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
-	if (v < img.height) {
-	    float y_screen = y + player.look_vert / num_cols * screen_size.y;
-	    if (y_screen < 0.f) y_screen = 0.f; 
-	    else if (y_screen >= screen_size.y) y_screen = screen_size.y - 1;
-	    u32 pixel_col = ((u32*)img.data)[u + (u64)v * img.width];
+	if (v < img->height) {
+	    float screen_y = y + player.look_vert / num_cols * screen_size.y;
+	    if (screen_y < 0.f) screen_y = 0.f; 
+	    else if (screen_y >= screen_size.y) screen_y = screen_size.y - 1;
+	    u32 pixel_col = ((u32*)img->data)[u + (u64)v * img->width];
 	    Color* col = (Color*)(&pixel_col);
 	    color_brightness(*col, (1.f / dist_light + scale));
 	    //ImageDrawPixel(&game_img, x, y_screen, *col);
-	    pixels[index(x, y_screen, game_img.width)] = *(u32*)col;
-	    depth_buffer[index(x, y_screen, screen_size.x)] = depth;
+	    pixels[index(screnn_x, screen_y, img->width)] = *(u32*)col;
+	    context.depth_buffer[index(screen_x, screen_y, screen_size.x)] = depth;
 	}
-	v += 1.f / strip.height * img.height;
+	v += 1.f / strip.height * img->height;
     }
 }
 
 
-void draw_walls(Rectangle boundary) {
+void draw_walls(Rectangle boundary, const Player& player, Context& context) {
     Vector2 size = {boundary.width / num_cols, boundary.height / num_rows};
     Vector2 prev = player.position;
     Vector2 p2 = Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane));
@@ -114,44 +118,33 @@ void draw_walls(Rectangle boundary) {
     Vector2 right = player.fov_right();
     Vector2 left_right = Vector2Subtract(right, left);
     for (int x = boundary.x; x < boundary.width; ++x) {
-		prev = player.position;
-		ray_dir = Vector2Subtract(left, player.position);
-		next = Vector2Add(player.position, ray_dir);
-		for(int i = 0; i < player.far_plane; ++i) {
-			int kind = 0;
-			Vector2 p = next_point(prev, next, kind);
-			prev = next;
-			next = p;
-			Vector2 cell = Vector2Add(next, Vector2Scale(ray_dir, epsilon));
-			cell.x = floor(cell.x);
-			cell.y = floor(cell.y);
-			if (cell.x >= num_cols || cell.y >= num_rows) continue;
-			wall_tex cell_type = level[index(cell.x, cell.y, num_cols)];
-			if (cell_type) {
-				float distance = Vector2DotProduct(Vector2Subtract(next, player.position), player.direction) * 2.f;
-				Color c = colors[kind];
-				if (cell_type == JOHANNDER) {
-					Vector2 t = Vector2Subtract(next, cell);
-					float u = 0;
-					if(float_equal(t.y, 1.f)) u = t.x;
-					else if(float_equal(t.y, 0.f)) u = 1.f - t.x;
-					else if(float_equal(t.x, 0.f)) u = t.y;
-					else  u = 1.f - t.y;
-					draw_strip(next, x, 0.f, u * johannder_img.width, 1.f / distance, johannder_img);
-				}
-				else {
-					Vector2 t = Vector2Subtract(next, cell);
-					float u = 0;
-					if(float_equal(t.y, 1.f)) u = t.x;
-					else if(float_equal(t.y, 0.f)) u = 1.f - t.x;
-					else if(float_equal(t.x, 0.f)) u = t.y;
-					else  u = 1.f - t.y;
-					draw_strip(next, x, 0.f, u * stone_wall_img.width, 1.f / distance, stone_wall_img);
-				}
-				break;
-			}
+	prev = player.position;
+	ray_dir = Vector2Subtract(left, player.position);
+	next = Vector2Add(player.position, ray_dir);
+	for(int i = 0; i < player.far_plane; ++i) {
+		int kind = 0;
+		Vector2 p = next_point(prev, next, kind);
+		prev = next;
+		next = p;
+		Vector2 cell = Vector2Add(next, Vector2Scale(ray_dir, epsilon));
+		cell.x = floor(cell.x);
+		cell.y = floor(cell.y);
+		if (cell.x >= num_cols || cell.y >= num_rows) continue;
+		wall_tex cell_type = context.level[index(cell.x, cell.y, num_cols)];
+		if (cell_type) {
+		    float distance = Vector2DotProduct(Vector2Subtract(next, player.position), player.direction) * 2.f;
+		    Image img = context.images[cell_type];
+		    Vector2 t = Vector2Subtract(next, cell);
+		    float txt_x = 0.f;
+		    if(float_equal(t.y, 1.f)) txt_x = t.x;
+		    else if(float_equal(t.y, 0.f)) txt_x = 1.f - t.x;
+		    else if(float_equal(t.x, 0.f)) txt_x = t.y;
+		    else  txt_x = 1.f - t.y;
+		    draw_strip(context, player, next, x, 0.f, txt_x * img.width, 1.f / distance, &img);
+		    break;
 		}
-	    left = Vector2Add(left, Vector2Scale(left_right, 1.f / screen_size.x));
+	}
+	left = Vector2Add(left, Vector2Scale(left_right, 1.f / screen_size.x));
     }
 }
 
@@ -239,3 +232,4 @@ void draw_floor() {
     }
 #endif
 }
+#endif
