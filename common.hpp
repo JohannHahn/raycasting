@@ -25,6 +25,7 @@ enum wall_tex {
     EMPTY, FLAT, STONE_WALL, JOHANNDER, WALL_TEX_MAX
 };
 
+
 struct Wall {
     wall_tex tex;
     Image* decal;
@@ -77,7 +78,7 @@ struct Context {
 	FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
 	EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
     };
-    Image images[WALL_TEX_MAX];
+    Image wall_textures[WALL_TEX_MAX] = {};
 };
 
 bool float_equal(float a, float b);

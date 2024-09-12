@@ -1,7 +1,7 @@
 #include <cassert>
 #include <iostream>
 #include "common.hpp"
-#include "draw.cpp"
+#include "draw.hpp"
 
 
 
@@ -27,6 +27,8 @@ Image helmet_img = LoadImage(helmet_path);
 Image blob_img = LoadImage(blob_path);
 bool debug_map = false;
 Texture johannder_tex;
+Player player = {};
+Context context;
 
 
 Wall walls[WALL_TEX_MAX] = {
@@ -197,11 +199,10 @@ void render() {
     fill_depth_buffer(max_depth);
 }
 
-
 int main() {
-    Player player = {};
-    Context context;
 
+    context.wall_textures[JOHANNDER] = johannder_img;
+    context.wall_textures[STONE_WALL] = stone_wall_img;
     InitWindow(window_size.x, window_size.y, window_title);
     SetWindowState(FLAG_WINDOW_RESIZABLE);
     ImageFormat(&stone_wall_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
@@ -219,11 +220,11 @@ int main() {
 	ImageClearBackground(&game_img, bg_color);
 	controls();
 	draw_floor();
-	draw_walls(game_boundary);
+	draw_walls(game_boundary, player, context);
 	draw_map(map_boundary);
 	for(Sprite& s : sprites) { 
-		draw_sprite(s);
-		animate_sprite(s, t);
+	    draw_sprite(s);
+	    animate_sprite(s, t);
 	}
 	t += GetFrameTime();
 	if (t > 1.f) t = 0.f;

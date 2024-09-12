@@ -56,14 +56,14 @@ void draw_strip_sprite(const Sprite& sprite, Context& context, const Player& pla
     strip.y += (1.f - sprite.size.y ) * strip.height;  
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(context.light_pos, sprite.position));
-    float depth = Vector2Length(Vector2Subtract(sprite.position, player.position));
+    float depth = Vector2Length(Vector2Subtract(sprite.position,context.player.position));
     u32* pixels = (u32*)(img->data);
 
     for (u64 y = strip.y; y < strip.y + strip.height; ++y) {
 	if (v >= sprite.img->height) break;
 
 	float screen_y = y - ((sprite.height / num_cols * screen_size.y) * scale);
-	screen_y += player.look_vert / num_cols * screen_size.y;
+	screen_y +=context.player.look_vert / num_cols * screen_size.y;
 	if (screen_y < 0.f) screen_y = 0.f; 
 	else if (screen_y >= screen_size.y) screen_y = screen_size.y - 1;
 
@@ -83,24 +83,25 @@ void draw_strip_sprite(const Sprite& sprite, Context& context, const Player& pla
     }
 }
 
-void draw_strip(Context& context, const Player& player, Vector2 pos, float screen_x, float top, u64 u, float scale, Image* img) {
+void draw_strip(Context& context, const Player& player, Vector2 pos, 
+		float screen_x, float top, u64 u, float scale, Image* img) {
     scale = Clamp(scale, 0.f, 1.f);
     Rectangle strip = squish_rec({(float)screen_x, top, 1.f, screen_size.y - 1}, scale);
     if (u > img->width) return;
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(context.light_pos, pos));
-    float depth = Vector2Length(Vector2Subtract(pos, player.position));
+    float depth = Vector2Length(Vector2Subtract(pos,context.player.position));
     u32* pixels = (u32*)(img->data);
     for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
 	if (v < img->height) {
-	    float screen_y = y + player.look_vert / num_cols * screen_size.y;
+	    float screen_y = y +context.player.look_vert / num_cols * screen_size.y;
 	    if (screen_y < 0.f) screen_y = 0.f; 
 	    else if (screen_y >= screen_size.y) screen_y = screen_size.y - 1;
 	    u32 pixel_col = ((u32*)img->data)[u + (u64)v * img->width];
 	    Color* col = (Color*)(&pixel_col);
 	    color_brightness(*col, (1.f / dist_light + scale));
 	    //ImageDrawPixel(&game_img, x, y_screen, *col);
-	    pixels[index(screnn_x, screen_y, img->width)] = *(u32*)col;
+	    pixels[index(screen_x, screen_y, img->width)] = *(u32*)col;
 	    context.depth_buffer[index(screen_x, screen_y, screen_size.x)] = depth;
 	}
 	v += 1.f / strip.height * img->height;
@@ -108,20 +109,20 @@ void draw_strip(Context& context, const Player& player, Vector2 pos, float scree
 }
 
 
-void draw_walls(Rectangle boundary, const Player& player, Context& context) {
+void draw_walls(Rectangle boundary, Context& context) {
     Vector2 size = {boundary.width / num_cols, boundary.height / num_rows};
-    Vector2 prev = player.position;
-    Vector2 p2 = Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane));
+    Vector2 prev =context.player.position;
+    Vector2 p2 = Vector2Add(player.position, Vector2Scalecontext.player.direction,context.player.near_plane));
     Vector2 next = p2;
-    Vector2 ray_dir = Vector2Normalize(Vector2Subtract(p2, player.position));
-    Vector2 left = player.fov_left();
-    Vector2 right = player.fov_right();
+    Vector2 ray_dir = Vector2Normalize(Vector2Subtract(p2,context.player.position));
+    Vector2 left =context.player.fov_left();
+    Vector2 right =context.player.fov_right();
     Vector2 left_right = Vector2Subtract(right, left);
     for (int x = boundary.x; x < boundary.width; ++x) {
-	prev = player.position;
-	ray_dir = Vector2Subtract(left, player.position);
-	next = Vector2Add(player.position, ray_dir);
-	for(int i = 0; i < player.far_plane; ++i) {
+	prev =context.player.position;
+	ray_dir = Vector2Subtract(left,context.player.position);
+	next = Vector2Addcontext.player.position, ray_dir);
+	for(int i = 0; i <context.player.far_plane; ++i) {
 		int kind = 0;
 		Vector2 p = next_point(prev, next, kind);
 		prev = next;
@@ -132,15 +133,15 @@ void draw_walls(Rectangle boundary, const Player& player, Context& context) {
 		if (cell.x >= num_cols || cell.y >= num_rows) continue;
 		wall_tex cell_type = context.level[index(cell.x, cell.y, num_cols)];
 		if (cell_type) {
-		    float distance = Vector2DotProduct(Vector2Subtract(next, player.position), player.direction) * 2.f;
-		    Image img = context.images[cell_type];
+		    float distance = Vector2DotProduct(Vector2Subtract(next,context.player.position),context.player.direction) * 2.f;
+		    Image img = context.wall_textures[cell_type];
 		    Vector2 t = Vector2Subtract(next, cell);
 		    float txt_x = 0.f;
 		    if(float_equal(t.y, 1.f)) txt_x = t.x;
 		    else if(float_equal(t.y, 0.f)) txt_x = 1.f - t.x;
 		    else if(float_equal(t.x, 0.f)) txt_x = t.y;
 		    else  txt_x = 1.f - t.y;
-		    draw_strip(context, player, next, x, 0.f, txt_x * img.width, 1.f / distance, &img);
+		    draw_strip(context,context.player, next, x, 0.f, txt_x * img.width, 1.f / distance, &img);
 		    break;
 		}
 	}
@@ -148,49 +149,49 @@ void draw_walls(Rectangle boundary, const Player& player, Context& context) {
     }
 }
 
-void draw_map(Rectangle boundary) {
-    ImageClearBackground(&map_img, map_bg);
+void draw_map(Rectangle boundary, Context& context, Image* map_img) {
+    ImageClearBackground(map_img, context.map_bg);
     Vector2 size = {boundary.width / num_cols, boundary.height / num_rows};
     for (u64 x = 0; x < num_cols; ++x) {
-	    ImageDrawLine(&map_img, x * size.x, 0, x*size.x, num_rows * size.y, ColorAlpha(RAYWHITE, 0.5f));
+	ImageDrawLine(map_img, x * size.x, 0, x*size.x, num_rows * size.y, ColorAlpha(RAYWHITE, 0.5f));
     }
     for (u64 y = 0; y < num_rows; ++y) {
-	    ImageDrawLine(&map_img, 0, y * size.y, num_cols * size.x, y * size.y, ColorAlpha(RAYWHITE, 0.5f));
+	ImageDrawLine(map_img, 0, y * size.y, num_cols * size.x, y * size.y, ColorAlpha(RAYWHITE, 0.5f));
     }
     for(u64 y = 0; y < num_rows; ++y) {
-		for(u64 x = 0; x < num_cols; ++x) {
-			if(level[index(x, y, num_cols)]) {
-			ImageDrawRectangleV(&map_img, {x * size.x, y * size.y}, size, ColorAlpha(WHITE, 0.5f));
-			}
-		}
+	for(u64 x = 0; x < num_cols; ++x) {
+	    if(context.level[index(x, y, num_cols)]) {
+		ImageDrawRectangleV(map_img, {x * size.x, y * size.y}, size, ColorAlpha(WHITE, 0.5f));
+	    }
+	}
     }
-    Vector2 player_map = Vector2Multiply(player.position, size);
-    Vector2 p2 = Vector2Add(player.position, Vector2Scale(player.direction, player.near_plane));
+    Vector2context.player_map = Vector2Multiply(context.player.position, size);
+    Vector2 p2 = Vector2Addcontext.player.position, Vector2Scalecontext.player.direction,context.player.near_plane));
     Vector2 p2_map = Vector2Multiply(p2, size);
-    ImageDrawCircleV(&map_img, player_map, 2, player.color);
-    ImageDrawLineV(&map_img, player_map, p2_map, player.color);
-    ImageDrawCircleV(&map_img, p2_map, 2, player.color);
-    ImageDrawLineV(&map_img, player_map, to_map(player.fov_left()), BLUE);
-    ImageDrawLineV(&map_img, player_map, to_map(player.fov_right()), GREEN);
-    ImageDrawLineV(&map_img, to_map(player.fov_right()), to_map(player.fov_left()), RED);
+    ImageDrawCircleV(&map_img,context.player_map, 2,context.player.color);
+    ImageDrawLineV(&map_img,context.player_map, p2_map,context.player.color);
+    ImageDrawCircleV(&map_img, p2_map, 2,context.player.color);
+    ImageDrawLineV(&map_img,context.player_map, to_mapcontext.player.fov_left()), BLUE);
+    ImageDrawLineV(&map_img,context.player_map, to_mapcontext.player.fov_right()), GREEN);
+    ImageDrawLineV(&map_img, to_mapcontext.player.fov_right()), to_mapcontext.player.fov_left()), RED);
 
-    for(const Sprite& s : sprites) {
+    for(const Sprite& s : context.sprites) {
 	ImageDrawCircleV(&map_img, to_map(s.position), 2, RED);
     }
 
-    if (debug_map) {
-	Vector2 prev = player.position;
+    if (context.debug_map) {
+	Vector2 prev =context.player.position;
 	Vector2 next = p2;
-	Vector2 ray_dir = Vector2Normalize(Vector2Subtract(p2, player.position));
-	Vector2 left = player.fov_left();
-	Vector2 right = player.fov_right();
+	Vector2 ray_dir = Vector2Normalize(Vector2Subtract(p2,context.player.position));
+	Vector2 left =context.player.fov_left();
+	Vector2 right =context.player.fov_right();
 	Vector2 left_right = Vector2Subtract(right, left);
 	u64 step_max = 10;
 	for (int step = 0; step < step_max; ++step) {
-	    prev = player.position;
-	    ray_dir = Vector2Subtract(left, player.position);
-	    next = Vector2Add(player.position, ray_dir);
-	    for(int i = 0; i < player.far_plane; ++i) {
+	    prev =context.player.position;
+	    ray_dir = Vector2Subtract(left,context.player.position);
+	    next = Vector2Addcontext.player.position, ray_dir);
+	    for(int i = 0; i <context.player.far_plane; ++i) {
 		int kind = 0;
 		Vector2 p = next_point(prev, next, kind);
 		Color c = colors[kind];
@@ -216,12 +217,51 @@ void draw_map(Rectangle boundary) {
 	    left = Vector2Add(left, Vector2Scale(left_right, 1.f / step_max));
 	}
     }
- }
+}
+
+void draw_sprite(const Sprite& sprite) {
+    float distance = Vector2DotProduct(Vector2Subtract(sprite.position,context.player.position),context.player.direction);
+    if (distance >=context.player.far_plane) return;
+    float scale = sprite.size.x / distance / 2.f;
+    Vector2 fov_plane = Vector2Subtractcontext.player.fov_right(),context.player.fov_left());
+    Vector2 camera_plane_dir = Vector2Normalize(fov_plane); 
+    Vector2 sprite_left = Vector2Subtract(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x / 2.f));
+    Vector2 sprite_right = Vector2Add(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x / 2.f));
+    
+    Vector2 collision_left, collision_right;
+    bool left_visible = CheckCollisionLinescontext.player.position, sprite_left,context.player.fov_left(),context.player.fov_right(), &collision_left); 
+    bool right_visible = CheckCollisionLinescontext.player.position, sprite_right,context.player.fov_left(),context.player.fov_right(), &collision_right);
+    if (!left_visible && !right_visible) return;
+
+    float x_start = Vector2Length(Vector2Subtract(collision_left,context.player.fov_left())) / Vector2Length(fov_plane) * screen_size.x;
+    float x_end = Vector2Length(Vector2Subtract(collision_right,context.player.fov_left())) / Vector2Length(fov_plane) * screen_size.x;
+
+    if (!right_visible) {
+	x_end = screen_size.x - 1;
+    }
+    else if (!left_visible) {
+	x_start = 0.f;
+    }
+    if (x_end < x_start) {
+	std::cout << "x_end < x_start, x_end = " << x_end << "\n";
+	return;
+    }
+
+    float full_length = scale * screen_size.x;
+    float visible_length = (x_end - x_start);
+    float step = (sprite.img->width * (visible_length / full_length)) / (x_end - x_start);
+    float u = right_visible ? step * (full_length - visible_length) : 0.f; 
+
+    for(u64 x = x_start; x <= x_end; ++x) {
+		draw_strip_sprite(sprite, x, u, scale);
+		u += step;
+    }
+}
 
 void draw_floor() {
     float scale = 1.f - EPSILON;
     Color c = WHITE;
-    float end = screen_size.y / 2.f + (player.look_vert / num_cols * screen_size.y);
+    float end = screen_size.y / 2.f + context.player.look_vert / num_cols * screen_size.y);
     if (end >= screen_size.y) end = screen_size.y - 1;
     else if (end < 0.f) end = 0.f;
     ImageDrawRectangle(&game_img, 0, end, screen_size.x, screen_size.y - end, ColorTint(floor_col, c));
