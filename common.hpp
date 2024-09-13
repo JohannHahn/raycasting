@@ -32,6 +32,13 @@ struct Wall {
     Rectangle decal_rec;
 };
 
+struct Sprite {
+    Vector2 position;
+    Vector2 size;
+    float height;
+    Image* img;
+};
+
 struct Player {
     Vector2 position;
     Vector2 direction;
@@ -65,6 +72,7 @@ struct Context {
     Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
     float depth_buffer[(u64)screen_size.x * (u64)screen_size.y] = {num_cols * num_rows};
     bool debug_print = false;
+    bool debug_map = false;
     Player player;
     wall_tex level[num_rows * num_cols] = {
 	FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,  FLAT,
@@ -78,15 +86,19 @@ struct Context {
 	FLAT, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
 	EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, FLAT, 
     };
-    Image wall_textures[WALL_TEX_MAX] = {};
+    Image* wall_textures[WALL_TEX_MAX] = {};
+    Image* map_img;
+    Image* game_img;
+    Sprite sprites[255];
 };
 
 bool float_equal(float a, float b);
 bool color_equal(Color c1, Color c2);
 u64 index(u64 x, u64 y, u64 width);
 Color u32_to_col(u32 i);
-bool inside_wall(Vector2 p);
+bool inside_wall(Vector2 p, Context& context);
 Vector2 next_point(Vector2 p, Vector2 p2, int& out);
+float snap(float n, float dn);
 
 #ifdef COMMON_IMPL
 bool float_equal(float a, float b) {
@@ -139,9 +151,21 @@ Vector2 next_point(Vector2 p, Vector2 p2, int& out) {
 }
 
 
+float snap(float n, float dn) {
+    
+    if(dn > 0) {
+	return std::ceil(n + epsilon);
+    }
 
-bool inside_wall(Vector2 p) {
-    return level[index(p.x, p.y, num_cols)];
+    if(dn < 0) { 
+	return std::floor(n - epsilon);
+    }
+    return n;
+}
+
+
+bool inside_wall(Vector2 p, Context& context) {
+    return context.level[index(p.x, p.y, num_cols)];
 }
 
 #endif //COMMON_IMPL

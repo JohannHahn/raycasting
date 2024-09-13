@@ -1,5 +1,7 @@
 #include <cassert>
+#include <cstring>
 #include <iostream>
+#define COMMON_IMPL
 #include "common.hpp"
 #include "draw.hpp"
 
@@ -25,9 +27,7 @@ Image johannder_img = LoadImage(johannder_path);
 Image sword_img = LoadImage(sprite_path);
 Image helmet_img = LoadImage(helmet_path);
 Image blob_img = LoadImage(blob_path);
-bool debug_map = false;
 Texture johannder_tex;
-Player player = {};
 Context context;
 
 
@@ -43,166 +43,89 @@ Wall walls[WALL_TEX_MAX] = {
 
 Sprite sprites[] = {{.position = {2.5f, 2.5f}, .size = {0.5f, 0.5f}, .img = &blob_img}, {.position = {3.5f, 2.5f}, .size = {1.f, 1.f}, .img = &johannder_img}, 
 		    {.position = {3.5f, 1.5f}, .size = {0.5f, 0.5f}, .img = &sword_img}, {.position = {1.5f, 2.5f}, .size = {0.33f, 0.33f}, .img = &sword_img}};
-struct Player {
-    Vector2 position = {num_cols / 2.f, num_rows/ 2.f};
-    Vector2 direction = {0.f, 1.f};
-    float look_vert = 0.f;
-    float speed = 5.f;
-    float size = 0.4f;
-    float rotation_speed = PI * 2.f;
-    float near_plane = 0.2f;
-    float far_plane = num_cols * 2;
-    void change_dir(int sign) {
-	if (sign < 0) sign = -1;
-	if (sign > 0) sign = 1;
-	direction = Vector2Normalize(Vector2Rotate(direction, sign * rotation_speed * GetFrameTime()));
-    }
-    Color color = RED;
-    Vector2 fov_left() {
-	return Vector2Subtract(Vector2Add(position, Vector2Scale(direction, near_plane)), Vector2Rotate(Vector2Scale(direction, near_plane), PI/2.f));
-    }
-    Vector2 fov_right() {
-	return Vector2Add(Vector2Add(position, Vector2Scale(direction, near_plane)), Vector2Rotate(Vector2Scale(direction, near_plane), PI/2.f));
-    }
-};
 
 
 void animate_sprite(Sprite& s, float t) {
     float t_lerped = Lerp(0.f, 2.f * PI, t);
-    s.z += sin(t_lerped) * 0.1f;
+    s.height += sin(t_lerped) * 0.1f;
 }
 
-
-float snap(float n, float dn) {
-    
-    if(dn > 0) {
-	return std::ceil(n + epsilon);
-    }
-
-    if(dn < 0) { 
-	return std::floor(n - epsilon);
-    }
-    return n;
-}
 
 
 void controls() {
     float dt = GetFrameTime();
 
     Vector2 mouse_delta = GetMouseDelta();
-    player.change_dir(mouse_delta.x);
-    player.look_vert -= player.rotation_speed * mouse_delta.y * dt;
+    context.player.change_dir(mouse_delta.x);
+    context.player.look_vert -= context.player.rotation_speed * mouse_delta.y * dt;
     float max_look = 19.f;
-    if (player.look_vert < (-max_look)) player.look_vert = -max_look; 
-    else if (player.look_vert > max_look) player.look_vert = max_look; 
+    if (context.player.look_vert < (-max_look)) context.player.look_vert = -max_look; 
+    else if (context.player.look_vert > max_look) context.player.look_vert = max_look; 
 
     if (IsKeyDown(KEY_E)) {
-	player.look_vert += 1.f * dt;
+	context.player.look_vert += 1.f * dt;
     }
     if (IsKeyDown(KEY_R)) {
-	player.look_vert -= 1.f * dt;
+	context.player.look_vert -= 1.f * dt;
     }
-    if (IsKeyDown(KEY_U)) sprites[0].z++; 
-    if (IsKeyDown(KEY_J)) sprites[0].z--; 
+    if (IsKeyDown(KEY_U)) context.sprites[0].height++; 
+    if (IsKeyDown(KEY_J)) context.sprites[0].height--; 
     if (IsKeyPressed(KEY_P)) {
-	debug_print = true;
+	context.debug_print = true;
     }
-    Vector2 new_pos = player.position;
+    Vector2 new_pos = context.player.position;
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
-	new_pos = Vector2Subtract(player.position, Vector2Scale(player.direction, player.speed * dt));
-	if (!inside_wall(Vector2Add(new_pos, Vector2Scale(player.direction, player.size)))) player.position = new_pos;
+	new_pos = Vector2Subtract(context.player.position, Vector2Scale(context.player.direction, context.player.speed * dt));
+	if (!inside_wall(Vector2Add(new_pos, Vector2Scale(context.player.direction, context.player.size)), context)) context.player.position = new_pos;
     } 
     if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
-	new_pos = Vector2Add(player.position, Vector2Scale(player.direction, player.speed * dt));
-	if (!inside_wall(Vector2Add(new_pos, Vector2Scale(player.direction, player.size)))) player.position = new_pos;
+	new_pos = Vector2Add(context.player.position, Vector2Scale(context.player.direction, context.player.speed * dt));
+	if (!inside_wall(Vector2Add(new_pos, Vector2Scale(context.player.direction, context.player.size)), context)) context.player.position = new_pos;
     } 
     if (IsKeyDown(KEY_A)) {
-	new_pos = Vector2Add(player.position, Vector2Scale(Vector2Rotate(player.direction, -PI/2.f), player.speed * dt));
-	if (!inside_wall(Vector2Add(new_pos, Vector2Scale(player.direction, player.size)))) player.position = new_pos;
+	new_pos = Vector2Add(context.player.position, Vector2Scale(Vector2Rotate(context.player.direction, -PI/2.f), context.player.speed * dt));
+	if (!inside_wall(Vector2Add(new_pos, Vector2Scale(context.player.direction, context.player.size)), context)) context.player.position = new_pos;
     } 
     if (IsKeyDown(KEY_D)) {
-	new_pos = Vector2Add(player.position, Vector2Scale(Vector2Rotate(player.direction, PI/2.f), player.speed * dt));
-	if (!inside_wall(Vector2Add(new_pos, Vector2Scale(player.direction, player.size)))) player.position = new_pos;
+	new_pos = Vector2Add(context.player.position, Vector2Scale(Vector2Rotate(context.player.direction, PI/2.f), context.player.speed * dt));
+	if (!inside_wall(Vector2Add(new_pos, Vector2Scale(context.player.direction, context.player.size)), context)) context.player.position = new_pos;
     } 
     if (IsKeyDown(KEY_LEFT)) {
-	player.change_dir(-1);
+	context.player.change_dir(-1);
     } 
     if (IsKeyDown(KEY_RIGHT)) {
-	player.change_dir(1);
+	context.player.change_dir(1);
     } 
     if (IsKeyPressed(KEY_ONE)) {
-	player.speed += 0.1f;
+	context.player.speed += 0.1f;
     } 
     if (IsKeyPressed(KEY_TWO)) {
-	player.speed -= 0.1f;
+	context.player.speed -= 0.1f;
     } 
-    player.position = new_pos;
+    context.player.position = new_pos;
 }
-
-
 
 void resize() {
     window_size.x = GetScreenWidth();
     window_size.y = GetScreenHeight();
 }
 
-void draw_sprite(const Sprite& sprite) {
-    float distance = Vector2DotProduct(Vector2Subtract(sprite.position, player.position), player.direction);
-    if (distance >= player.far_plane) return;
-    float scale = sprite.size.x / distance / 2.f;
-    Vector2 fov_plane = Vector2Subtract(player.fov_right(), player.fov_left());
-    Vector2 camera_plane_dir = Vector2Normalize(fov_plane); 
-    Vector2 sprite_left = Vector2Subtract(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x / 2.f));
-    Vector2 sprite_right = Vector2Add(sprite.position, Vector2Scale(camera_plane_dir, sprite.size.x / 2.f));
-    
-    Vector2 collision_left, collision_right;
-    bool left_visible = CheckCollisionLines(player.position, sprite_left, player.fov_left(), player.fov_right(), &collision_left); 
-    bool right_visible = CheckCollisionLines(player.position, sprite_right, player.fov_left(), player.fov_right(), &collision_right);
-    if (!left_visible && !right_visible) return;
-
-    float x_start = Vector2Length(Vector2Subtract(collision_left, player.fov_left())) / Vector2Length(fov_plane) * screen_size.x;
-    float x_end = Vector2Length(Vector2Subtract(collision_right, player.fov_left())) / Vector2Length(fov_plane) * screen_size.x;
-
-    if (!right_visible) {
-	x_end = screen_size.x - 1;
-    }
-    else if (!left_visible) {
-	x_start = 0.f;
-    }
-    if (x_end < x_start) {
-	std::cout << "x_end < x_start, x_end = " << x_end << "\n";
-	return;
-    }
-
-    float full_length = scale * screen_size.x;
-    float visible_length = (x_end - x_start);
-    float step = (sprite.img->width * (visible_length / full_length)) / (x_end - x_start);
-    float u = right_visible ? step * (full_length - visible_length) : 0.f; 
-
-    for(u64 x = x_start; x <= x_end; ++x) {
-		draw_strip_sprite(sprite, x, u, scale);
-		u += step;
-    }
-}
-
-void fill_depth_buffer(float val) {
-    for(float& n: depth_buffer) {
-	n = val;
-    } 
-}
 
 void render() {
     UpdateTexture(game_tex, game_img.data);
     DrawTexturePro(game_tex, game_boundary, {0.f, 0.f, window_size.x, window_size.y}, {0.f, 0.f}, 0, WHITE);
     UpdateTexture(map_tex, map_img.data);
     DrawTexturePro(map_tex, map_boundary, {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor}, {0.f, 0.f}, 0, WHITE);
-    fill_depth_buffer(max_depth);
+    fill_depth_buffer(max_depth, context);
 }
 
 int main() {
+    context.wall_textures[JOHANNDER] = &johannder_img;
+    context.wall_textures[STONE_WALL] = &stone_wall_img;
+    context.map_img = &map_img;
+    context.game_img = &game_img;
+    memcpy(context.sprites, sprites, sizeof(Sprite) * 4);
 
-    context.wall_textures[JOHANNDER] = johannder_img;
-    context.wall_textures[STONE_WALL] = stone_wall_img;
     InitWindow(window_size.x, window_size.y, window_title);
     SetWindowState(FLAG_WINDOW_RESIZABLE);
     ImageFormat(&stone_wall_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
@@ -210,8 +133,8 @@ int main() {
     ImageFormat(&sword_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
     map_tex = LoadTextureFromImage(map_img);
     game_tex = LoadTextureFromImage(game_img);
-    player.direction = Vector2Normalize({1.f, 1.f});
-    player.look_vert = 0.f;
+    context.player.direction = Vector2Normalize({1.f, 1.f});
+    context.player.look_vert = 0.f;
     johannder_tex = LoadTextureFromImage(johannder_img);
     float t = 0.f;
     while(!WindowShouldClose()) {
@@ -219,11 +142,11 @@ int main() {
 	BeginDrawing();
 	ImageClearBackground(&game_img, bg_color);
 	controls();
-	draw_floor();
-	draw_walls(game_boundary, player, context);
-	draw_map(map_boundary);
+	draw_floor(context);
+	draw_walls(game_boundary, context);
+	draw_map(map_boundary, context);
 	for(Sprite& s : sprites) { 
-	    draw_sprite(s);
+	    draw_sprite(s, context);
 	    animate_sprite(s, t);
 	}
 	t += GetFrameTime();
