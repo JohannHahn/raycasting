@@ -5,7 +5,10 @@
 #include <cassert>
 #include "common.hpp"
 
+void test_image(Context& context) {
 
+    DrawTexture(context.test_tex, 0, 0, WHITE);
+}
 
 void color_brightness(Color& c, float scale) {
     c.r *= scale;
@@ -28,12 +31,15 @@ Rectangle scale_rec(Rectangle r, float factor) {
 }
 
 
+
 Vector2 transform_point (Vector2 point, Rectangle dst, Vector2 src) {
+    assert(!float_equal(src.x, 0.f) && !float_equal(src.y, 0.f));
     return Vector2Multiply(point, {dst.width / src.x, dst.height / src.y});
 }
 
 Vector2 transform_point (Vector2 point, Rectangle dst, Rectangle src) {
-    return Vector2Multiply(point, {dst.width / src.x, dst.height / src.y});
+    assert(!float_equal(src.width, 0.f) && !float_equal(src.height, 0.f));
+    return Vector2Multiply(point, {dst.width / src.width, dst.height / src.height});
 }
 
 Vector2 to_map(Vector2 point, Context& context) {
@@ -108,7 +114,8 @@ void draw_strip(Context& context, const Player& player, Vector2 pos,
 }
 
 
-void draw_walls(Rectangle boundary, Context& context) {
+void draw_walls(Context& context) {
+	Rectangle boundary = context.game_boundary;
     Vector2 size = {boundary.width / num_cols, boundary.height / num_rows};
     Vector2 prev =context.player.position;
     Vector2 p2 = Vector2Add(context.player.position, Vector2Scale(context.player.direction, context.player.near_plane));
@@ -129,7 +136,7 @@ void draw_walls(Rectangle boundary, Context& context) {
 		Vector2 cell = Vector2Add(next, Vector2Scale(ray_dir, epsilon));
 		cell.x = floor(cell.x);
 		cell.y = floor(cell.y);
-		if (cell.x >= num_cols || cell.y >= num_rows) continue;
+		if (cell.x >= num_cols || cell.y >= num_rows || cell.x < 0 || cell.y < 0) continue;
 		wall_tex cell_type = context.level[index(cell.x, cell.y, num_cols)];
 		if (cell_type) {
 		    float distance = Vector2DotProduct(Vector2Subtract(next,context.player.position),context.player.direction) * 2.f;

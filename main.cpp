@@ -1,7 +1,9 @@
+#include "raylib/raylib/include/raylib.h"
 #include <cassert>
 #include <cstring>
 #include <iostream>
 #define COMMON_IMPL
+//#define VS_STUDIO
 #include "common.hpp"
 #include "draw.hpp"
 
@@ -14,9 +16,7 @@ Color bg_color = SKYBLUE;
 Color map_bg = GRAY;
 Color floor_col = DARKGRAY;
 Image map_img = GenImageColor(map_boundary.width, map_boundary.height, map_bg);
-Texture map_tex;
 Image game_img = GenImageColor(screen_size.x, screen_size.y, bg_color);
-Texture game_tex;
 const char* wall_tex_path = "tileable10d.png";
 const char* johannder_path = "johannder.png";
 const char* sprite_path = "woodSword.png";
@@ -37,13 +37,6 @@ Wall walls[WALL_TEX_MAX] = {
     {STONE_WALL, NULL, {}}, 
     {JOHANNDER, &sword_img, {1.f, 1.f}}
 };
-
-
-
-
-Sprite sprites[] = {{.position = {2.5f, 2.5f}, .size = {0.5f, 0.5f}, .img = &blob_img}, {.position = {3.5f, 2.5f}, .size = {1.f, 1.f}, .img = &johannder_img}, 
-		    {.position = {3.5f, 1.5f}, .size = {0.5f, 0.5f}, .img = &sword_img}, {.position = {1.5f, 2.5f}, .size = {0.33f, 0.33f}, .img = &sword_img}};
-
 
 void animate_sprite(Sprite& s, float t) {
     float t_lerped = Lerp(0.f, 2.f * PI, t);
@@ -106,51 +99,66 @@ void controls() {
 }
 
 void resize() {
-    window_size.x = GetScreenWidth();
-    window_size.y = GetScreenHeight();
+    context.window_size.x = GetScreenWidth();
+    context.window_size.y = GetScreenHeight();
 }
 
 
 void render() {
-    UpdateTexture(game_tex, game_img.data);
-    DrawTexturePro(game_tex, game_boundary, {0.f, 0.f, window_size.x, window_size.y}, {0.f, 0.f}, 0, WHITE);
-    UpdateTexture(map_tex, map_img.data);
-    DrawTexturePro(map_tex, map_boundary, {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor}, {0.f, 0.f}, 0, WHITE);
-    fill_depth_buffer(max_depth, context);
+    UpdateTexture(context.game_tex, context.game_img->data);
+    DrawTexturePro(context.game_tex, game_boundary, {0.f, 0.f, window_size.x, window_size.y}, {0.f, 0.f}, 0, WHITE);
+    UpdateTexture(context.map_tex, context.map_img->data);
+    DrawTexturePro(context.map_tex, map_boundary, {0.f, 0.f, window_size.x / map_factor, window_size.y / map_factor}, {0.f, 0.f}, 0, WHITE);
+    for(float& n: context.depth_buffer) {
+	n = max_depth;
+    } 
 }
 
 int main() {
+    Image flat = GenImageColor(100, 100, GRAY);
+    Image none = GenImageColor(1, 1, BLACK);
+    context.wall_textures[FLAT] = &flat;
+    context.wall_textures[EMPTY] = &flat;
     context.wall_textures[JOHANNDER] = &johannder_img;
     context.wall_textures[STONE_WALL] = &stone_wall_img;
     context.map_img = &map_img;
     context.game_img = &game_img;
-    memcpy(context.sprites, sprites, sizeof(Sprite) * 4);
+    context.game_boundary = game_boundary;
+    context.map_boundary = map_boundary;
+    context.sprites[0] = (Sprite){.position = {2.5f, 2.5f}, .size = {0.5f, 0.5f}, .img = &blob_img};
+    context.sprites[1] = (Sprite){.position = {3.5f, 2.5f}, .size = {1.f, 1.f}, .img = &johannder_img};
+    context.sprites[2] = (Sprite){.position = {3.5f, 1.5f}, .size = {0.5f, 0.5f}, .img = &sword_img};
+    context.sprites[3] = (Sprite){.position = {1.5f, 2.5f}, .size = {0.33f, 0.33f}, .img = &sword_img};
+    ImageFormat(&johannder_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    ImageFormat(&stone_wall_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    ImageFormat(&blob_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+    ImageFormat(&sword_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
 
     InitWindow(window_size.x, window_size.y, window_title);
     SetWindowState(FLAG_WINDOW_RESIZABLE);
-    ImageFormat(&stone_wall_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-    ImageFormat(&johannder_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-    ImageFormat(&sword_img, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
-    map_tex = LoadTextureFromImage(map_img);
-    game_tex = LoadTextureFromImage(game_img);
+    SetTargetFPS(120);
+    context.map_tex = LoadTextureFromImage(map_img);
+    context.game_tex = LoadTextureFromImage(game_img);
     context.player.direction = Vector2Normalize({1.f, 1.f});
     context.player.look_vert = 0.f;
     johannder_tex = LoadTextureFromImage(johannder_img);
+    context.test_tex = LoadTextureFromImage(context.test_img);
     float t = 0.f;
     while(!WindowShouldClose()) {
 	if (IsWindowResized()) resize();
 	BeginDrawing();
 	ImageClearBackground(&game_img, bg_color);
+	draw_map(map_boundary, context);
 	controls();
 	draw_floor(context);
-	draw_walls(game_boundary, context);
-	draw_map(map_boundary, context);
-	for(Sprite& s : sprites) { 
+	//draw_walls(context);
+	for(Sprite& s : context.sprites) { 
 	    draw_sprite(s, context);
 	    animate_sprite(s, t);
 	}
 	t += GetFrameTime();
 	if (t > 1.f) t = 0.f;
+	DrawFPS(700, 100);
 	render();
 	EndDrawing();
     }

@@ -16,7 +16,6 @@ static constexpr float epsilon = 0.00001f;
 static constexpr float max_depth = 999999.f;
 static constexpr Vector2 screen_size = {600.f, 600.f}; 
 
-
 enum side_kind {
     UNUSED, X, Y, PARALLEL 
 };
@@ -24,7 +23,6 @@ enum side_kind {
 enum wall_tex {
     EMPTY, FLAT, STONE_WALL, JOHANNDER, WALL_TEX_MAX
 };
-
 
 struct Wall {
     wall_tex tex;
@@ -40,14 +38,14 @@ struct Sprite {
 };
 
 struct Player {
-    Vector2 position;
-    Vector2 direction;
+    Vector2 position = {0, 0};
+    Vector2 direction = {0, 0};
     float look_vert = 0.f;
     float speed = 5.f;
     float size = 0.4f;
     float rotation_speed = PI * 2.f;
     float near_plane = 0.2f;
-    float far_plane;
+    float far_plane = 20;
     void change_dir(int sign) {
 	if (sign < 0) sign = -1;
 	if (sign > 0) sign = 1;
@@ -63,6 +61,8 @@ struct Player {
 };
 
 struct Context {
+    Image test_img = GenImageColor(100, 100, MAGENTA);
+    Texture test_tex;
     Vector2 window_size = {1200.f, 1200.f}; 
     Rectangle map_boundary = {0.f, 0.f, screen_size.x / map_factor, screen_size.y / map_factor};
     Rectangle game_boundary = {0.f, 0.f, screen_size.x, screen_size.y};
@@ -89,7 +89,9 @@ struct Context {
     Image* wall_textures[WALL_TEX_MAX] = {};
     Image* map_img;
     Image* game_img;
-    Sprite sprites[255];
+    Texture game_tex;
+    Texture map_tex;
+    Sprite sprites[4];
 };
 
 bool float_equal(float a, float b);
