@@ -63,9 +63,6 @@ void controls() {
     }
     if (IsKeyDown(KEY_U)) context.sprites[0].height++; 
     if (IsKeyDown(KEY_J)) context.sprites[0].height--; 
-    if (IsKeyPressed(KEY_P)) {
-	context.debug_print = true;
-    }
     Vector2 new_pos = context.player.position;
     if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
 	new_pos = Vector2Subtract(context.player.position, Vector2Scale(context.player.direction, context.player.speed * dt));
@@ -143,6 +140,7 @@ int main() {
     context.player.look_vert = 0.f;
     johannder_tex = LoadTextureFromImage(johannder_img);
     context.test_tex = LoadTextureFromImage(context.test_img);
+    context.debug_log_var = true;
     float t = 0.f;
     while(!WindowShouldClose()) {
 	if (IsWindowResized()) resize();
@@ -151,10 +149,10 @@ int main() {
 	draw_map(map_boundary, context);
 	controls();
 	draw_floor(context);
-	//draw_walls(context);
+	draw_walls(context);
 	for(Sprite& s : context.sprites) { 
-	    draw_sprite(s, context);
-	    animate_sprite(s, t);
+	    //draw_sprite(s, context);
+	    //animate_sprite(s, t);
 	}
 	t += GetFrameTime();
 	if (t > 1.f) t = 0.f;

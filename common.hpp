@@ -71,7 +71,7 @@ struct Context {
     Color floor_col = DARKGRAY;
     Vector2 light_pos = {num_cols / 2.f, num_rows / 2.f};
     float depth_buffer[(u64)screen_size.x * (u64)screen_size.y] = {num_cols * num_rows};
-    bool debug_print = false;
+    bool debug_log_var = false;
     bool debug_map = false;
     Player player;
     wall_tex level[num_rows * num_cols] = {
@@ -102,7 +102,18 @@ bool inside_wall(Vector2 p, Context& context);
 Vector2 next_point(Vector2 p, Vector2 p2, int& out);
 float snap(float n, float dn);
 
+template <typename T>
+void log_var(T var, const char* name, Context& context) {
+    if (!context.debug_log_var) return;
+    std::cout << "value of " << name << " = " << var << "\n";
+    std::cout << "----------------------\n";
+}
+
+// use only if context is defined in the scope and named "context"
+#define LOG_VAR(var, name) log_var(var, name, context);
+
 #ifdef COMMON_IMPL
+
 bool float_equal(float a, float b) {
     return std::abs(a - b) < epsilon;
 }

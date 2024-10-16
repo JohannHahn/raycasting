@@ -5,6 +5,8 @@
 #include <cassert>
 #include "common.hpp"
 
+bool debug_log = false;
+
 void test_image(Context& context) {
 
     DrawTexture(context.test_tex, 0, 0, WHITE);
@@ -88,34 +90,47 @@ void draw_strip_sprite(const Sprite& sprite, Context& context, float screen_x, u
     }
 }
 
-void draw_strip(Context& context, const Player& player, Vector2 pos, 
+void draw_strip(Context& context, Vector2 pos, 
 		float screen_x, float top, u64 u, float scale, Image* img) {
+    if (u > img->width) return;
+
     scale = Clamp(scale, 0.f, 1.f);
     Rectangle strip = squish_rec({(float)screen_x, top, 1.f, screen_size.y - 1}, scale);
-    if (u > img->width) return;
     float v = 0.f;
     float dist_light = Vector2Length(Vector2Subtract(context.light_pos, pos));
     float depth = Vector2Length(Vector2Subtract(pos,context.player.position));
-    u32* pixels = (u32*)(img->data);
+    u32* pixels = (u32*)(context.game_img->data);
+
     for(u64 y = strip.y; y < strip.y + strip.height; ++y) {
 	if (v < img->height) {
-	    float screen_y = y +context.player.look_vert / num_cols * screen_size.y;
+	    float screen_y = y + context.player.look_vert / num_cols * screen_size.y;
 	    if (screen_y < 0.f) screen_y = 0.f; 
 	    else if (screen_y >= screen_size.y) screen_y = screen_size.y - 1;
-	    u32 pixel_col = ((u32*)img->data)[u + (u64)v * img->width];
+
+	    u64 idx_screen = index(screen_x, screen_y, screen_size.x);
+	    LOG_VAR(idx_screen, "idx_screen");
+	    assert(idx_screen < screen_size.x * screen_size.y);
+
+	    u64 idx_img = index(u, v, img->width);
+	    LOG_VAR(idx_img, "idx_img");
+	    LOG_VAR(img->width, "img width");
+	    LOG_VAR(img->height, "img height");
+	    //assert(idx_img < img->width * img->height);
+
+	    u32 pixel_col = ((u32*)img->data)[idx_img];
 	    Color* col = (Color*)(&pixel_col);
 	    color_brightness(*col, (1.f / dist_light + scale));
-	    //ImageDrawPixel(&game_img, x, y_screen, *col);
-	    pixels[index(screen_x, screen_y, img->width)] = *(u32*)col;
-	    context.depth_buffer[index(screen_x, screen_y, screen_size.x)] = depth;
+	    pixels[idx_img] = *(u32*)col;
+	    context.depth_buffer[idx_screen] = depth;
 	}
 	v += 1.f / strip.height * img->height;
     }
 }
 
 
+
 void draw_walls(Context& context) {
-	Rectangle boundary = context.game_boundary;
+    Rectangle boundary = context.game_boundary;
     Vector2 size = {boundary.width / num_cols, boundary.height / num_rows};
     Vector2 prev =context.player.position;
     Vector2 p2 = Vector2Add(context.player.position, Vector2Scale(context.player.direction, context.player.near_plane));
@@ -125,6 +140,7 @@ void draw_walls(Context& context) {
     Vector2 right =context.player.fov_right();
     Vector2 left_right = Vector2Subtract(right, left);
     for (int x = boundary.x; x < boundary.width; ++x) {
+	std::cout << "start outer loop\n";
 	prev =context.player.position;
 	ray_dir = Vector2Subtract(left,context.player.position);
 	next = Vector2Add(context.player.position, ray_dir);
@@ -138,7 +154,7 @@ void draw_walls(Context& context) {
 		cell.y = floor(cell.y);
 		if (cell.x >= num_cols || cell.y >= num_rows || cell.x < 0 || cell.y < 0) continue;
 		wall_tex cell_type = context.level[index(cell.x, cell.y, num_cols)];
-		if (cell_type) {
+		if (cell_type && cell_type < WALL_TEX_MAX) {
 		    float distance = Vector2DotProduct(Vector2Subtract(next,context.player.position),context.player.direction) * 2.f;
 		    Image* img = context.wall_textures[cell_type];
 		    Vector2 t = Vector2Subtract(next, cell);
@@ -147,10 +163,22 @@ void draw_walls(Context& context) {
 		    else if(float_equal(t.y, 0.f)) txt_x = 1.f - t.x;
 		    else if(float_equal(t.x, 0.f)) txt_x = t.y;
 		    else  txt_x = 1.f - t.y;
-		    draw_strip(context,context.player, next, x, 0.f, txt_x * img->width, 1.f / distance, img);
+		    std::cout << "before draw strip\n";
+		    LOG_VAR(distance, "distance");
+		    LOG_VAR(next.x, "next.x");
+		    LOG_VAR(next.y, "next.y");
+		    LOG_VAR(cell_type, "cell_type");
+		    std::cout << "!!!_----------_!!!!\n";
+		    draw_strip(context, next, x, 0.f, txt_x * img->width, 1.f / distance, img);
 		    break;
 		}
 	}
+	std::cout << "after inner loop\n";
+	LOG_VAR(left.x, "left.x");
+	LOG_VAR(left.y, "left.y");
+	LOG_VAR(left_right.x, "left_right.x");
+	LOG_VAR(left_right.y, "left_right.y");
+	LOG_VAR(screen_size.x, "screen_size.x");	
 	left = Vector2Add(left, Vector2Scale(left_right, 1.f / screen_size.x));
     }
 }
